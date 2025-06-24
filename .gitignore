@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+ppo_go2_tensorboard/
+trained_models/
+.vscode/
+.idea/
+.env
+*.zip
+*.log
