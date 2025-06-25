@@ -7,3 +7,4 @@ trained_models/
 .env
 *.zip
 *.log
+MUJOCO_LOG.TXT
