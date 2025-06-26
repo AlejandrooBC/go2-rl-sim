@@ -3,18 +3,23 @@ import numpy as np
 import mujoco
 from mujoco import MjModel, MjData, viewer
 from gymnasium import spaces
+from scipy.spatial.transform import Rotation as R
 
-# Custom Gymnasium environment for simulating the Unitree Go2 robot using MuJoCo
+# Custom Gymnasium environment for simulating the Unitree Go2 robot using MuJoCo (inherits from Env class)
 class UnitreeGo2Env(gym.Env):
     def __init__(self, model_path="../mujoco_menagerie/unitree_go2/go2.xml"):
         # Load the MuJoCo model and allocate simulation data
         self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model (geometry, actuators/motors, etc.)
         self.data = MjData(self.model) # Live state of the Go2 and world (qpos, qvel, ctrl, etc.) - snapshot
 
-        # Number of MuJoCo physics steps to take per environment step - for each call to step()
+        # Number of MuJoCo physics steps to take per environment step --> for each call to step()
         self.sim_steps = 30
 
-        # Define the action space: one control input per actuator (what the agent can output)
+        # Build a sample observation to determine observation vector length (used to define space shape)
+        self._obs_template = self._construct_observation()
+        obs_dim = len(self._obs_template) # Get dimension of observation vector for Gym's observation space
+
+        # Define the action space: what the robot/agent can do --> one control input per actuator
         # If the shape = (12,) then the policy will output 12 numbers between (low, high) per step
         self.action_space = spaces.Box( # Box = continuous values with (low, high) bounds
             low=-1.0,
@@ -22,59 +27,62 @@ class UnitreeGo2Env(gym.Env):
             shape=(self.model.nu,), # nu = number of actuators
             dtype=np.float32)
 
-        # Define the observation space: joint positions and velocities (what the agent sees)
-        # The policy receives a vector of all joint angles, base pose, and their velocities
-        obs_dim = self.model.nq + self.model.nv # nq = positions, nv = velocities
+        # Define the observation space: what the robot/agent sees
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(obs_dim,), # nq + nv
+            shape=(obs_dim,),
             dtype=np.float32)
 
-        # Counter for throttled printing
-        self.print_counter = 0
+    # Constructs the observation the robot/agent will receive
+    def _construct_observation(self):
+        # Base orientation quaternion: [w, x, y, z]
+        quat = self.data.qpos[3:7]
+
+        # Convert to [roll, pitch, yaw] using scipy (requires [x, y, z, w] order)
+        rpy = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_euler("xyz", degrees=False)
+
+        lin_vel = self.data.qvel[0:3] # Base linear velocity in x, y, z (world frame)
+        ang_vel = self.data.qvel[3:6] # Base angular velocity in x, y, z
+
+        # Joint positions and velocities for all 12 actuators
+        joint_pos = self.data.qpos[7:]
+        joint_vel = self.data.qvel[6:]
+
+        # Final observation vector: orientation, base motion, joint states
+        obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel])
+        return obs
 
     # The core loop of the environment - each time our PPO agent sends an action, this happens:
     def step(self, action):
-        # Apply the control signal (input) to the robot - array of size 12 (number of actuators on the Go2)
+        # Ctrl_range = Array of shape (n_actuators, 2) = (12, 2)
+        # Defines min and max control signal (torque, position, target, etc.) for each actuator
+        ctrl_range = self.model.actuator_ctrlrange
+
+        # Mid is the midpoint of each actuator's range, amp is the half range
+        mid = 0.5 * (ctrl_range[:, 0] + ctrl_range[:, 1]) # Mid = 0.5 * (min values + max values)
+        amp = 0.5 * (ctrl_range[:, 1] - ctrl_range[:, 0]) # Amp = 0.5 * (max values - min values)
+        scaled_action = mid + action * amp # Rescales action ∈ [-1, 1] to scaled_action ∈ [min, max]
+
+        # Feeding rescaled control signal (input) to the robot - array of size 12 (number of actuators on the Go2)
         # The Go2 has 4 legs, 3 actuators per leg (abduction, hip, knee) = 12 total actuators
-        self.data.ctrl[:] = action
+        self.data.ctrl[:] = scaled_action
 
         # Step the physics forward several times for smoother simulation
         for i in range(self.sim_steps):
             mujoco.mj_step(self.model, self.data)
 
-        # Construct the updated observation: [qpos, qvel]
-        obs = np.concatenate([self.data.qpos, self.data.qvel])
-
-        # Calculating torque effort
-        torque_effort = np.sum(np.square(self.data.ctrl))
+        # Construct the updated observation
+        obs = self._construct_observation()
 
         # Define forward velocity
         forward_velocity = self.data.qvel[0]
 
-        # Penalize falling outside a height range
-        # height = self.data.qpos[2]
-        # min_height = 0.20
-        # target_height = 0.24
-        # max_height = 0.30
-        # if height < min_height or height > max_height:
-        #     height_penalty = np.abs(height - target_height)
-        # else:
-        #     height_penalty = 0.0
-
-        # Or soft quadratic height penalty
-        # height_penalty = (height - target_height) ** 2
-
+        # Define reward - moving forward
         reward = 20 * forward_velocity
-        # reward = (
-        #     5.0 * forward_velocity
-        #     -0.5 * height_penalty
-        #     -0.01 * torque_effort
-        # )
 
         # Placeholder termination flags
-        terminated = bool(False) # (self.data.qpos[2] < 0.2)
+        terminated = bool(False)
         truncated = bool(False)
 
         # Info for Tensorboard logging
@@ -84,16 +92,6 @@ class UnitreeGo2Env(gym.Env):
             "x_velocity": self.data.qvel[0],
             "reward": reward
         }
-
-        # Print metrics every 100 environment steps
-        # if self.print_counter % 100 == 0:
-        #     print(
-        #         f"X_POSITION: {self.data.qpos[0]:.3f} | "
-        #         f"Z_HEIGHT: {self.data.qpos[2]:.3f} | "
-        #         f"X_VELOCITY: {self.data.qvel[0]:.3f} | "
-        #         f"REWARD: {reward:.3f}"
-        #     )
-        # self.print_counter += 1
 
         return obs.astype(np.float32), reward, terminated, truncated, info
 
@@ -120,9 +118,8 @@ class UnitreeGo2Env(gym.Env):
         # Tells MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
         mujoco.mj_forward(self.model, self.data)
 
-        # Packages the observations as a [positions + velocities] array and returns it
-        obs = np.concatenate([self.data.qpos, self.data.qvel])
-        self.print_counter = 0 # Reset counter each episode
+        # Packages the observations and returns it
+        obs = self._construct_observation()
         return obs.astype(np.float32), {}
 
     # Renders the MuJoCo environment for model visualization
@@ -133,3 +130,10 @@ class UnitreeGo2Env(gym.Env):
 
         # Update the viewer with the latest state
         self.viewer.sync()
+
+# # Testing the Go2 environment
+# if __name__ == "__main__":
+#     env = UnitreeGo2Env()
+#     obs, _ = env.reset()
+#     dummy_action = np.zeros(env.action_space.shape)
+#     env.step(dummy_action)

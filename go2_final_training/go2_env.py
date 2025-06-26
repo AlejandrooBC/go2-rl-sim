@@ -12,7 +12,7 @@ class UnitreeGo2Env(gym.Env):
         self.data = MjData(self.model) # Live state of the Go2 and world (qpos, qvel, ctrl, etc.) - snapshot
 
         # Number of MuJoCo physics steps to take per environment step - for each call to step()
-        self.sim_steps = 20
+        self.sim_steps = 30
 
         # Define the action space: one control input per actuator (what the agent can output)
         # If the shape = (12,) then the policy will output 12 numbers between (low, high) per step
@@ -53,24 +53,28 @@ class UnitreeGo2Env(gym.Env):
         # Define forward velocity
         forward_velocity = self.data.qvel[0]
 
-        # Penalize falling outside a height range (encourage Go2 to remain upright)
-        height = self.data.qpos[2]
-        min_height = 0.20
-        target_height = 0.27
-        max_height = 0.30
-        if height < min_height or height > max_height:
-            height_penalty = np.abs(height - target_height)
-        else:
-            height_penalty = 0.0
+        # Penalize falling outside a height range
+        # height = self.data.qpos[2]
+        # min_height = 0.20
+        # target_height = 0.24
+        # max_height = 0.30
+        # if height < min_height or height > max_height:
+        #     height_penalty = np.abs(height - target_height)
+        # else:
+        #     height_penalty = 0.0
 
-        reward = (
-            1 * forward_velocity
-            -2 * height_penalty
-            -0.001 * torque_effort
-        )
+        # Or soft quadratic height penalty
+        # height_penalty = (height - target_height) ** 2
+
+        reward = 20 * forward_velocity
+        # reward = (
+        #     5.0 * forward_velocity
+        #     -0.5 * height_penalty
+        #     -0.01 * torque_effort
+        # )
 
         # Placeholder termination flags
-        terminated = bool(self.data.qpos[2] < 0.2)
+        terminated = bool(False) # (self.data.qpos[2] < 0.2)
         truncated = bool(False)
 
         # Info for Tensorboard logging

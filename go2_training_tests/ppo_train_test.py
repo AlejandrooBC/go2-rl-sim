@@ -48,11 +48,11 @@ Train the model using PPO:
 3. PPO trains a neural network to output actions (12D control vector)
 """
 model.learn(
-    total_timesteps=1_000_000, # Number of training timesteps
+    total_timesteps=300_000, # Number of training timesteps
     tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
     callback=TensorboardCallback() # Log step count to Tensorboard
 )
 
 # Save the model with a unique timestamped filename
-model.save(f"trained_models/{model_name}")
+model.save(f"test_models/{model_name}")
 print(f"Training complete. Model saved as '{model_name}.zip'")

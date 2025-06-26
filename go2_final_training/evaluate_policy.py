@@ -3,14 +3,14 @@ from go2_env import UnitreeGo2Env
 from torch.utils.tensorboard import SummaryWriter
 
 # Create a writer for TensorBoard logs
-writer = SummaryWriter(log_dir="./ppo_go2_tensorboard/eval")
+writer = SummaryWriter(log_dir="ppo_go2_tensorboard/eval")
 
 # Load the custom environment and the trained PPO model
 env = UnitreeGo2Env()
-model = PPO.load("trained_models/ppo_go2_20250624-110402") # Replace this with the correct model's name
+model = PPO.load("trained_models/ppo_go2_20250625-092407") # Replace this with the correct model's name
 
 # Number of episodes to evaluate the policy on
-n_eval_episodes = 20
+n_eval_episodes = 30
 
 # Loop through evaluation episodes
 for ep in range(n_eval_episodes):

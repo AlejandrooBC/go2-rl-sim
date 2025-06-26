@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
-ppo_go2_tensorboard/
-trained_models/
+go2_final_training/ppo_go2_tensorboard/
+go2_final_training/trained_models/
 .vscode/
 .idea/
 .env
