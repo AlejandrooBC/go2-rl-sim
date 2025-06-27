@@ -1,13 +1,14 @@
 from stable_baselines3 import PPO
 from go2_env_test import UnitreeGo2Env
 from torch.utils.tensorboard import SummaryWriter
+import time
 
 # Create a writer for TensorBoard logs
 writer = SummaryWriter(log_dir="test_tensorboard/eval")
 
 # Load the custom environment and the trained PPO model
 env = UnitreeGo2Env()
-model = PPO.load("test_models/ppo_go2_20250626-131515") # Replace this with the correct model's name
+model = PPO.load("test_models/ppo_go2_20250627-155938") # Replace this with the correct model's name
 
 # Number of episodes to evaluate the policy on
 n_eval_episodes = 30
@@ -29,6 +30,7 @@ for ep in range(n_eval_episodes):
 
         # Render the robot in a viewer window
         env.render()
+        time.sleep(0.03)
 
         # Check for the episode's end
         done = terminated or truncated

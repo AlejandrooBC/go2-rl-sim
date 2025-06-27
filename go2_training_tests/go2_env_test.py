@@ -7,17 +7,41 @@ from scipy.spatial.transform import Rotation as R
 
 # Custom Gymnasium environment for simulating the Unitree Go2 robot using MuJoCo (inherits from Env class)
 class UnitreeGo2Env(gym.Env):
-    def __init__(self, model_path="../mujoco_menagerie/unitree_go2/go2.xml"):
+    def __init__(self, model_path="../mujoco_menagerie/unitree_go2/scene.xml", render_mode="human"):
         # Load the MuJoCo model and allocate simulation data
-        self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model (geometry, actuators/motors, etc.)
-        self.data = MjData(self.model) # Live state of the Go2 and world (qpos, qvel, ctrl, etc.) - snapshot
+        self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model
+        self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
         self.sim_steps = 30
+        self.render_mode = render_mode
+        self.viewer = None
 
-        # Build a sample observation to determine observation vector length (used to define space shape)
+        # Initial Go2 configuration: base pose and joint angles
+        self.init_qpos = np.array([
+            0, 0, 0.27,  # Base position (x = 0, y = 0, z = 0.27 m) --> slightly above the floor
+            1, 0, 0, 0,  # Base orientation quaternion (w, x, y, z) --> robot is upright with no rotation
+
+            # Joint angles for each leg: abduction (side swing), hip (forward/back), knee (extension/flexion)
+            0, 0.9, -1.8,  # Front-left
+            0, 0.9, -1.8,  # Front-right
+            0, 0.9, -1.8,  # Rear-left
+            0, 0.9, -1.8  # Rear-right
+        ])
+
+        # Initial Go2 velocities: 6 base DOFs + 12 joints = 18 total velocity DOFs --> all start at zero (static spawn)
+        self.init_qvel = np.zeros_like(self.data.qvel)
+
+        # Observation and action spaces
         self._obs_template = self._construct_observation()
         obs_dim = len(self._obs_template) # Get dimension of observation vector for Gym's observation space
+
+        # Define the observation space: what the robot/agent sees
+        self.observation_space = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(obs_dim,),
+            dtype=np.float32)
 
         # Define the action space: what the robot/agent can do --> one control input per actuator
         # If the shape = (12,) then the policy will output 12 numbers between (low, high) per step
@@ -27,14 +51,8 @@ class UnitreeGo2Env(gym.Env):
             shape=(self.model.nu,), # nu = number of actuators
             dtype=np.float32)
 
-        # Define the observation space: what the robot/agent sees
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(obs_dim,),
-            dtype=np.float32)
-
     # Constructs the observation the robot/agent will receive
+    # Returns vector: [roll, pitch, yaw] + [linear vel xyz] + [angular vel xyz] + [joint pos 12] + [joint vel 12]
     def _construct_observation(self):
         # Base orientation quaternion: [w, x, y, z]
         quat = self.data.qpos[3:7]
@@ -51,10 +69,12 @@ class UnitreeGo2Env(gym.Env):
 
         # Final observation vector: orientation, base motion, joint states
         obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel])
-        return obs
+        return obs.astype(np.float32)
 
     # The core loop of the environment - each time our PPO agent sends an action, this happens:
     def step(self, action):
+        action = np.clip(action, -1.0, 1.0) # Clamp action to safe range
+
         # Ctrl_range = Array of shape (n_actuators, 2) = (12, 2)
         # Defines min and max control signal (torque, position, target, etc.) for each actuator
         ctrl_range = self.model.actuator_ctrlrange
@@ -75,61 +95,50 @@ class UnitreeGo2Env(gym.Env):
         # Construct the updated observation
         obs = self._construct_observation()
 
-        # Define forward velocity
+        # Define forward velocity and height
         forward_velocity = self.data.qvel[0]
+        z_height = self.data.qpos[2]
 
-        # Define reward - moving forward
-        reward = 20 * forward_velocity
+        # Reward encourages forward motion and staying upright
+        alive_bonus = 1.0 if z_height > 0.2 else -1.0
+        reward = 20 * forward_velocity + alive_bonus
 
-        # Placeholder termination flags
-        terminated = bool(False)
+        # Episode ends if robot falls
+        terminated = bool(z_height < 0.15)
         truncated = bool(False)
 
         # Info for Tensorboard logging
         info = {
             "x_position": self.data.qpos[0],
-            "z_height": self.data.qpos[2],
-            "x_velocity": self.data.qvel[0],
+            "z_height": z_height,
+            "x_velocity": forward_velocity,
             "reward": reward
         }
 
-        return obs.astype(np.float32), reward, terminated, truncated, info
+        return obs, reward, terminated, truncated, info
 
     # Reset sim to a known starting state (called at the beginning of each episode during training/evaluation)
     def reset(self, seed=None, options=None):
         super().reset(seed=seed) # Calls parent class's reset() method
-        mujoco.mj_resetData(self.model, self.data) # Reset old sim data (sets qpos, qvel, etc. to defaults/zeros)
 
         # Set initial robot pose for the Go2 based on go2.xml
-        self.data.qpos[:] = np.array([
-            0, 0, 0.27, # Base pos (x = 0, y = 0, z = 0.27 m) - slightly above the floor
-            1, 0, 0, 0, # Base orientation quaternion (w, x, y, z) --> robot is upright with no rotation
-
-            # Joint angles for each leg: abduction (side swing), hip (forward/back), knee (extension/flexion)
-            0, 0.9, -1.8, # Front-left
-            0, 0.9, -1.8, # Front-right
-            0, 0.9, -1.8, # Rear-left
-            0, 0.9, -1.8 # Rear-right
-        ])
+        self.data.qpos[:] = self.init_qpos
 
         # Set all joint and base velocities to zero - robot not moving at spawn
-        self.data.qvel[:] = np.zeros_like(self.data.qvel)
+        self.data.qvel[:] = self.init_qvel
 
-        # Tells MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
+        # Tell MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
         mujoco.mj_forward(self.model, self.data)
 
-        # Packages the observations and returns it
-        obs = self._construct_observation()
-        return obs.astype(np.float32), {}
+        return self._construct_observation(), {}
 
     # Renders the MuJoCo environment for model visualization
-    def render(self, mode="human"):
-        # Launch the passive viewer only once
-        if not hasattr(self, "viewer"):
-            self.viewer = viewer.launch_passive(self.model, self.data)
-
-        # Update the viewer with the latest state
-        self.viewer.sync()
+    def render(self):
+        if self.render_mode == "human":
+            if self.viewer is None:
+                self.viewer = viewer.launch_passive(self.model, self.data)
+            else:
+                self.viewer.sync()
 
 # # Testing the Go2 environment
 # if __name__ == "__main__":
