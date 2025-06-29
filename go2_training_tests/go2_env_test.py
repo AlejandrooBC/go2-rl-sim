@@ -95,21 +95,30 @@ class UnitreeGo2Env(gym.Env):
         # Construct the updated observation
         obs = self._construct_observation()
 
-        # Define forward velocity and height
+        # Define forward position and velocity
         forward_velocity = self.data.qvel[0]
-        z_height = self.data.qpos[2]
+        forward_position = self.data.qpos[0]
 
         # Reward encourages forward motion and staying upright
-        alive_bonus = 1.0 if z_height > 0.2 else -1.0
-        reward = 20 * forward_velocity + alive_bonus
+        z_height = self.data.qpos[2]
+        target_height = 0.27
+        # alive_bonus = 1.0 if z_height > 0.2 else -1.0
+
+        # Penalize deviation from target height
+        height_penalty = 3 * (z_height - target_height) ** 2
+
+        # Penalize high-torque effort
+        # torque_effort = np.sum(np.square(self.data.ctrl))
+
+        reward = 6 * forward_velocity - height_penalty # 0.001 * torque_effort 20 * forward_velocity + alive_bonus #
 
         # Episode ends if robot falls
-        terminated = bool(z_height < 0.15)
+        terminated = bool(z_height < 0.15) # bool(z_height < 0.18 or z_height > 0.35)
         truncated = bool(False)
 
         # Info for Tensorboard logging
         info = {
-            "x_position": self.data.qpos[0],
+            "x_position": forward_position,
             "z_height": z_height,
             "x_velocity": forward_velocity,
             "reward": reward

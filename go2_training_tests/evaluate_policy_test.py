@@ -8,10 +8,10 @@ writer = SummaryWriter(log_dir="test_tensorboard/eval")
 
 # Load the custom environment and the trained PPO model
 env = UnitreeGo2Env()
-model = PPO.load("test_models/ppo_go2_20250627-155938") # Replace this with the correct model's name
+model = PPO.load("test_models/ppo_go2_20250628-150458") # Replace this with the correct model's name
 
 # Number of episodes to evaluate the policy on
-n_eval_episodes = 30
+n_eval_episodes = 50
 
 # Loop through evaluation episodes
 for ep in range(n_eval_episodes):
@@ -21,7 +21,7 @@ for ep in range(n_eval_episodes):
     steps = 0
 
     # Run the policy until the episode ends or max steps reached
-    while not done and steps < 1000:
+    while not done and steps < 4000:
         # Predict the next action using the trained policy (no randomness)
         action, _ = model.predict(obs, deterministic=True)
 
