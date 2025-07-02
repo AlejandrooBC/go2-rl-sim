@@ -18,11 +18,10 @@ MUJOCO_LOG.TXT
 # Trained models
 *.zip
 **/trained_models/
-**/test_models/
 
 # TensorBoard logs
 **/ppo_go2_tensorboard/
-**/test_tensorboard/
+go2_training/tensorboard/
 
 # Other
 .DS_Store

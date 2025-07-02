@@ -2,7 +2,7 @@ import time
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import BaseCallback
-from go2_env_test import UnitreeGo2Env
+from go2_env import UnitreeGo2Env
 
 # Generate a timestamp string to uniquely identify this training run
 timestamp = time.strftime("%Y%m%d-%H%M%S")
