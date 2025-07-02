@@ -22,6 +22,7 @@ MUJOCO_LOG.TXT
 # TensorBoard logs
 **/ppo_go2_tensorboard/
 go2_training/tensorboard/
+go2_training/tensorboard/eval
 
 # Other
 .DS_Store
