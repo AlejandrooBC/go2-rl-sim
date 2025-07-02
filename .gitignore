@@ -1,0 +1,28 @@
+# Python bytecode and cache
+__pycache__/
+*.pyc
+
+# Environments
+.venv/
+.env
+
+# IDE settings
+.vscode/
+.idea/
+
+# Logs
+*.log
+*.LOG
+MUJOCO_LOG.TXT
+
+# Trained models
+*.zip
+**/trained_models/
+**/test_models/
+
+# TensorBoard logs
+**/ppo_go2_tensorboard/
+**/test_tensorboard/
+
+# Other
+.DS_Store

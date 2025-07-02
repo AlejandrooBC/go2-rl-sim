@@ -1,0 +1,9 @@
+# Go2 RL Training and Simulation
+This project trains a reinforcement learning policy using PPO for the Unitree Go2 quadruped robot in MuJoCo simulation.
+
+## Features
+- Custom Gymnasium-compatible environment.
+- Reward shaping for stable walking.
+- PPO training with Stable-Baselines3.
+- TensorBoard logging.
+- Evaluation in MuJoCo viewer.
