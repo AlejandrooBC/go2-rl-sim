@@ -13,7 +13,7 @@ class UnitreeGo2Env(gym.Env):
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
-        self.sim_steps = 30
+        self.sim_steps = 5
         self.render_mode = render_mode
         self.viewer = None
 
@@ -97,7 +97,7 @@ class UnitreeGo2Env(gym.Env):
 
         # Extract roll, pitch, yaw and penalize a large roll/pitch
         rpy = obs[:3]
-        posture_penalty = 0.5 * (rpy[0] ** 2 + rpy[1] ** 2)
+        posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2)
 
         # Define forward position and velocity
         forward_velocity = self.data.qvel[0]
@@ -108,7 +108,7 @@ class UnitreeGo2Env(gym.Env):
         target_height = 0.27
 
         # Penalize deviation from target height
-        height_penalty = 3 * (z_height - target_height) ** 2
+        height_penalty = 1.2 * (z_height - target_height) ** 2
 
         # Alive bonus to encourage the agent to stay upright longer
         alive_bonus = 0.1
@@ -116,7 +116,7 @@ class UnitreeGo2Env(gym.Env):
         # Penalize high-torque effort
         torque_effort = np.sum(np.square(self.data.ctrl))
 
-        reward = 1 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
+        reward = 1.5 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
 
         # Episode ends if robot falls
         terminated = bool(z_height < 0.15 or z_height > 0.40)
