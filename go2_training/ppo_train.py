@@ -1,6 +1,4 @@
 import time
-import gymnasium as gym
-import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_checker import check_env
