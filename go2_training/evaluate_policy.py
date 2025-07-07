@@ -8,7 +8,7 @@ writer = SummaryWriter(log_dir="tensorboard/eval")
 
 # Load the custom environment and the trained PPO model
 env = UnitreeGo2Env()
-model = PPO.load("trained_models/ppo_go2_20250707-141008") # Replace this with the correct model's name
+model = PPO.load("trained_models/UnitreeGo2-v0") # Replace this with the correct model's name
 
 # Number of episodes to evaluate the policy on
 n_eval_episodes = 100
