@@ -14,10 +14,10 @@ class UnitreeGo2Env(gym.Env):
 
         # Simulate action delay
         self.last_action = np.zeros(self.model.nu)
-        self.simulate_action_latency = True
+        self.simulate_action_latency = False
 
         # Control frequency: number of MuJoCo physics steps to take per environment step --> for each call to step()
-        self.sim_steps = 20 # 50 Hz control frequency to match the real Go2 (1000/20)
+        self.sim_steps = 5 # 50 Hz control frequency to match the real Go2 (1000/20)
 
         # Render mode and viewer
         self.render_mode = render_mode
