@@ -12,8 +12,14 @@ class UnitreeGo2Env(gym.Env):
         self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
 
-        # Number of MuJoCo physics steps to take per environment step --> for each call to step()
-        self.sim_steps = 5
+        # Simulate action delay
+        self.last_action = np.zeros(self.model.nu)
+        self.simulate_action_latency = True
+
+        # Control frequency: number of MuJoCo physics steps to take per environment step --> for each call to step()
+        self.sim_steps = 20 # 50 Hz control frequency to match the real Go2 (1000/20)
+
+        # Render mode and viewer
         self.render_mode = render_mode
         self.viewer = None
 
@@ -84,39 +90,37 @@ class UnitreeGo2Env(gym.Env):
         amp = 0.5 * (ctrl_range[:, 1] - ctrl_range[:, 0]) # Amp = 0.5 * (max values - min values)
         scaled_action = mid + action * amp # Rescales action ∈ [-1, 1] to scaled_action ∈ [min, max]
 
+        # Apply last action for latency simulation
+        exec_action = self.last_action if self.simulate_action_latency else scaled_action
+
         # Feeding rescaled control signal (input) to the robot - array of size 12 (number of actuators on the Go2)
         # The Go2 has 4 legs, 3 actuators per leg (abduction, hip, knee) = 12 total actuators
-        self.data.ctrl[:] = scaled_action
+        self.data.ctrl[:] = exec_action
+        self.last_action = scaled_action.copy()
 
         # Step the physics forward several times for smoother simulation
         for i in range(self.sim_steps):
             mujoco.mj_step(self.model, self.data)
 
-        # Construct the updated observation
+        # Construct the updated observation and extract roll, pitch, and yaw
         obs = self._construct_observation()
-
-        # Extract roll, pitch, yaw and penalize a large roll/pitch
         rpy = obs[:3]
-        posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2)
 
-        # Define forward position and velocity
+        # Define forward velocity, position, and heights
         forward_velocity = self.data.qvel[0]
         forward_position = self.data.qpos[0]
-
-        # Reward encourages forward motion and staying upright
         z_height = self.data.qpos[2]
         target_height = 0.27
 
-        # Penalize deviation from target height
-        height_penalty = 1.2 * (z_height - target_height) ** 2
+        # Reward shaping
+        posture_penalty = np.exp(-((rpy[0] ** 2 + rpy[1] ** 2) / 0.1)) # Encourage staying upright (roll, pitch)
+        height_bonus = np.exp(-((z_height - target_height) ** 2 / 0.01)) # Encourage maintaining target height
+        torque_penalty = 0.0005 * np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
+        vel_bonus = np.exp(-((1.5 - forward_velocity) ** 2 / 0.25)) # Rewards forward velocity close to 1.5 m/s
+        alive_bonus = 0.1 # Small constant reward to encourage survival
 
-        # Alive bonus to encourage the agent to stay upright longer
-        alive_bonus = 0.1
-
-        # Penalize high-torque effort
-        torque_effort = np.sum(np.square(self.data.ctrl))
-
-        reward = 1.5 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
+        # Reward function
+        reward = 2.0 * vel_bonus + 0.5 * posture_penalty + 0.5 * height_bonus - torque_penalty + alive_bonus
 
         # Episode ends if robot falls
         terminated = bool(z_height < 0.15 or z_height > 0.40)
@@ -145,6 +149,9 @@ class UnitreeGo2Env(gym.Env):
         # Tell MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
         mujoco.mj_forward(self.model, self.data)
 
+        # Reset last action on episode reset
+        self.last_action = np.zeros(self.model.nu)
+
         return self._construct_observation(), {}
 
     # Renders the MuJoCo environment for model visualization
@@ -154,10 +161,3 @@ class UnitreeGo2Env(gym.Env):
                 self.viewer = viewer.launch_passive(self.model, self.data)
             else:
                 self.viewer.sync()
-
-# # Testing the Go2 environment
-# if __name__ == "__main__":
-#     env = UnitreeGo2Env()
-#     obs, _ = env.reset()
-#     dummy_action = np.zeros(env.action_space.shape)
-#     env.step(dummy_action)

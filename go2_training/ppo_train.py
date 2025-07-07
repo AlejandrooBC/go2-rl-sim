@@ -1,19 +1,33 @@
 import time
+import gymnasium as gym
+import numpy as np
 from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import BaseCallback
 from go2_env import UnitreeGo2Env
 
-# Generate a timestamp string to uniquely identify this training run
-timestamp = time.strftime("%Y%m%d-%H%M%S")
-model_name = f"ppo_go2_{timestamp}"
+# Number of vectorized/parallel environments (train the agent on N environments per step)
+NUM_ENVS = 8
 
-# Optional: Custom callback to log custom info during training
+# Create a new instance of the environment (must be picklable)
+def make_env():
+    def _init():
+        env = UnitreeGo2Env(render_mode="none")
+        return env
+    return _init
+
+# Create the vectorized environment using multiple subprocesses
+vec_env = SubprocVecEnv([make_env() for _ in range(NUM_ENVS)])
+
+# Check single environment compatibility once
+check_env(UnitreeGo2Env(), warn=True)
+
+# Custom callback to log custom info during training
 class TensorboardCallback(BaseCallback):
     # Called every time the model takes a step --> used to log custom metrics to Tensorboard
     def _on_step(self) -> bool:
         self.logger.record("custom/step_count", self.num_timesteps)
-
         info = self.locals.get("infos", [{}])[0]
 
         if "x_position" in info:
@@ -27,20 +41,21 @@ class TensorboardCallback(BaseCallback):
 
         return True
 
-# Initialize the sim environment and check its compatability
-env = UnitreeGo2Env()
-check_env(env, warn=True)
+# Generate a timestamp string to uniquely identify this training run
+timestamp = time.strftime("%Y%m%d-%H%M%S")
+model_name = f"ppo_go2_{timestamp}"
 
 # Create the PPO model
 model = PPO(
     "MlpPolicy", # Use a multi-layer perceptron (MLP) policy
-    env, # Custom Go2 environment
+    vec_env, # Custom Go2 environment
     verbose=1, # Print training progress to terminal
     tensorboard_log="./ppo_go2_tensorboard/", # Enable Tensorboard logging (path to save logs)
-    n_steps=8192,
-    batch_size=1024,
-    n_epochs=5,
-    device="cuda"
+    n_steps=2048 * NUM_ENVS, # Number of steps that are collected from each environment per update cycle
+    batch_size=2048, # Number of samples (state, action, reward, next state) processed during each gradient update
+    n_epochs=10, # Number of complete passes of the entire training dataset through the RL algorithm
+    device="cuda", # GPU usage
+    policy_kwargs=dict(net_arch=[256, 256]) # Simpler than default [64, 64]
 )
 
 """
@@ -52,7 +67,7 @@ Train the model using PPO:
 3. PPO trains a neural network to output actions (12D control vector)
 """
 model.learn(
-    total_timesteps=5_000_000, # Number of training timesteps
+    total_timesteps=8_000_000, # Number of training timesteps
     tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
     callback=TensorboardCallback() # Log step count to Tensorboard
 )
