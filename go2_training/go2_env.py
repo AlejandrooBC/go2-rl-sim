@@ -13,11 +13,11 @@ class UnitreeGo2Env(gym.Env):
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
 
         # Simulate action delay
-        self.last_action = np.zeros(self.model.nu)
-        self.simulate_action_latency = False
+        # self.last_action = np.zeros(self.model.nu)
+        # self.simulate_action_latency = False
 
         # Control frequency: number of MuJoCo physics steps to take per environment step --> for each call to step()
-        self.sim_steps = 5 # 50 Hz control frequency to match the real Go2 (1000/20)
+        self.sim_steps = 5 # 20 is 50 Hz control frequency to match the real Go2 (1000/20)
 
         # Render mode and viewer
         self.render_mode = render_mode
@@ -91,12 +91,12 @@ class UnitreeGo2Env(gym.Env):
         scaled_action = mid + action * amp # Rescales action ∈ [-1, 1] to scaled_action ∈ [min, max]
 
         # Apply last action for latency simulation
-        exec_action = self.last_action if self.simulate_action_latency else scaled_action
+        # exec_action = self.last_action if self.simulate_action_latency else scaled_action
 
         # Feeding rescaled control signal (input) to the robot - array of size 12 (number of actuators on the Go2)
         # The Go2 has 4 legs, 3 actuators per leg (abduction, hip, knee) = 12 total actuators
-        self.data.ctrl[:] = exec_action
-        self.last_action = scaled_action.copy()
+        self.data.ctrl[:] = scaled_action
+        # self.last_action = scaled_action.copy()
 
         # Step the physics forward several times for smoother simulation
         for i in range(self.sim_steps):
@@ -149,7 +149,7 @@ class UnitreeGo2Env(gym.Env):
         mujoco.mj_forward(self.model, self.data)
 
         # Reset last action on episode reset
-        self.last_action = np.zeros(self.model.nu)
+        # self.last_action = np.zeros(self.model.nu)
 
         return self._construct_observation(), {}
 
