@@ -113,14 +113,13 @@ class UnitreeGo2Env(gym.Env):
         target_height = 0.27
 
         # Reward shaping
-        posture_penalty = np.exp(-((rpy[0] ** 2 + rpy[1] ** 2) / 0.1)) # Encourage staying upright (roll, pitch)
-        height_bonus = np.exp(-((z_height - target_height) ** 2 / 0.01)) # Encourage maintaining target height
-        torque_penalty = 0.0005 * np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
-        vel_bonus = np.exp(-((1.5 - forward_velocity) ** 2 / 0.25)) # Rewards forward velocity close to 1.5 m/s
-        alive_bonus = 0.1 # Small constant reward to encourage survival
+        posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
+        height_penalty = 1.2 * (z_height - target_height) ** 2 # Encourage maintaining target height
+        torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
+        alive_bonus = 0.2 # Small constant reward to encourage survival
 
         # Reward function
-        reward = 2.0 * vel_bonus + 0.5 * posture_penalty + 0.5 * height_bonus - torque_penalty + alive_bonus
+        reward = 1.3 - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
 
         # Episode ends if robot falls
         terminated = bool(z_height < 0.15 or z_height > 0.40)
