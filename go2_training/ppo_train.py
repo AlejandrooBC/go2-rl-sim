@@ -74,7 +74,7 @@ if __name__ == "__main__":
     3. PPO trains a neural network to output actions (12D control vector)
     """
     model.learn(
-        total_timesteps=3_000_000, # Number of training timesteps
+        total_timesteps=6_000_000, # Number of training timesteps
         tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
         callback=TensorboardCallback() # Log step count to Tensorboard
     )
@@ -82,4 +82,4 @@ if __name__ == "__main__":
     # Save the model and VecNormalize stats with a unique timestamped filename
     model.save(f"trained_models/{model_name}")
     vec_env.save(f"vecstats/{model_name}_vecnormalize.pkl")
-    print(f"Training complete. Model saved as {model_name}, vecstats saved as {model_name}_vecnormalize.pkl.")
+    print(f"Training complete. Model saved as {model_name}.zip, vecstats saved as {model_name}_vecnormalize.pkl.")
