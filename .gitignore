@@ -20,6 +20,7 @@ MUJOCO_LOG.TXT
 # Trained models
 *.zip
 **/trained_models/
+**/vecstats/
 
 # TensorBoard logs
 **/ppo_go2_tensorboard/
