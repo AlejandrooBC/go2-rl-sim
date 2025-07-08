@@ -46,7 +46,7 @@ if __name__ == "__main__":
     vec_envs = SubprocVecEnv([make_env() for _ in range(NUM_ENVS)])
 
     # Normalize observations and rewards
-    vec_env = VecNormalize(vec_envs, norm_obs=True, norm_reward=True, clip_obs=10.)
+    vec_env = VecNormalize(vec_envs, norm_obs=True, norm_reward=False, clip_obs=10.)
 
     # Generate a timestamp string to uniquely identify this training run
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -82,4 +82,4 @@ if __name__ == "__main__":
     # Save the model and VecNormalize stats with a unique timestamped filename
     model.save(f"trained_models/{model_name}")
     vec_env.save(f"vecstats/{model_name}_vecnormalize.pkl")
-    print(f"Training complete. Model and VecNormalize stats saved.")
+    print(f"Training complete. Model saved as {model_name}, vecstats saved as {model_name}_vecnormalize.pkl.")
