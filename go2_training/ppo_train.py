@@ -1,7 +1,7 @@
 import time
 import multiprocessing as mp
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import BaseCallback
 from go2_env import UnitreeGo2Env
@@ -9,14 +9,14 @@ from go2_env import UnitreeGo2Env
 # Number of vectorized/parallel environments (train the agent on N environments per step)
 NUM_ENVS = 8
 
-# Factory for creating environments (required by SubprocVecEnv)
+# Factory to create a new environment instance
 def make_env():
     def _init():
         env = UnitreeGo2Env(render_mode="none")
         return env
     return _init
 
-# Custom callback to log custom info during training
+# Custom callback to log info during training
 class TensorboardCallback(BaseCallback):
     # Called every time the model takes a step --> used to log custom metrics to Tensorboard
     def _on_step(self) -> bool:
@@ -36,13 +36,17 @@ class TensorboardCallback(BaseCallback):
 
 # Main block - required for SubprocVecEnv to work without forking issues
 if __name__ == "__main__":
-    mp.set_start_method("fork", force=True) # Ensures Linux uses "fork"
+    # Ensures Linux uses "fork"
+    mp.set_start_method("fork", force=True)
 
     # Check single environment compatibility once
     check_env(UnitreeGo2Env(), warn=True)
 
     # Create the vectorized environment using multiple subprocesses
-    vec_env = SubprocVecEnv([make_env() for _ in range(NUM_ENVS)])
+    vec_envs = SubprocVecEnv([make_env() for _ in range(NUM_ENVS)])
+
+    # Normalize observations and rewards
+    vec_env = VecNormalize(vec_envs, norm_obs=True, norm_reward=True, clip_obs=10.)
 
     # Generate a timestamp string to uniquely identify this training run
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -70,11 +74,13 @@ if __name__ == "__main__":
     3. PPO trains a neural network to output actions (12D control vector)
     """
     model.learn(
-        total_timesteps=8_000_000, # Number of training timesteps
+        total_timesteps=3_000_000, # Number of training timesteps
         tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
         callback=TensorboardCallback() # Log step count to Tensorboard
     )
 
-    # Save the model with a unique timestamped filename
+    # Save the model and VecNormalize stats with a unique timestamped filename
     model.save(f"trained_models/{model_name}")
-    print(f"Training complete. Model saved as '{model_name}.zip'")
+    vec_env.save(f"vecstats/{model_name}_vecnormalize.pkl")
+
+    print(f"Training complete. Model and VecNormalize stats saved.")
