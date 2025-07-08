@@ -119,7 +119,7 @@ class UnitreeGo2Env(gym.Env):
         alive_bonus = 0.2 # Small constant reward to encourage survival
 
         # Reward function
-        reward = 4 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
+        reward = 20 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
 
         # Episode ends if robot falls
         terminated = bool(z_height < 0.15 or z_height > 0.40)
