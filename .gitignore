@@ -19,7 +19,7 @@ MUJOCO_LOG.TXT
 
 # Trained models
 *.zip
-single_env_training/trained_models_single
+single_env_training/trained_models_single/
 vectorized_env_training/trained_models_vec/
 **/vecstats/
 
