@@ -19,13 +19,16 @@ MUJOCO_LOG.TXT
 
 # Trained models
 *.zip
-**/trained_models/
+single_env_training/trained_models_single
+vectorized_env_training/trained_models_vec/
 **/vecstats/
 
 # TensorBoard logs
 **/ppo_go2_tensorboard/
-go2_training/tensorboard/
-go2_training/tensorboard/eval
+single_env_training/tensorboard/
+single_env_training/tensorboard/eval
+vectorized_env_training/tensorboard/
+vectorized_env_training/tensorboard/eval
 
 # Other
 .DS_Store
