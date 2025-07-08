@@ -82,5 +82,4 @@ if __name__ == "__main__":
     # Save the model and VecNormalize stats with a unique timestamped filename
     model.save(f"trained_models/{model_name}")
     vec_env.save(f"vecstats/{model_name}_vecnormalize.pkl")
-
     print(f"Training complete. Model and VecNormalize stats saved.")

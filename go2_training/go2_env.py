@@ -17,7 +17,7 @@ class UnitreeGo2Env(gym.Env):
         # self.simulate_action_latency = False
 
         # Control frequency: number of MuJoCo physics steps to take per environment step --> for each call to step()
-        self.sim_steps = 5 # 20 is 50 Hz control frequency to match the real Go2 (1000/20)
+        self.sim_steps = 10 # 20 is 50 Hz control frequency to match the real Go2 (1000/20)
 
         # Render mode and viewer
         self.render_mode = render_mode
@@ -119,7 +119,7 @@ class UnitreeGo2Env(gym.Env):
         alive_bonus = 0.2 # Small constant reward to encourage survival
 
         # Reward function
-        reward = 4 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
+        reward = 2 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
 
         # Episode ends if robot falls
         terminated = bool(z_height < 0.15 or z_height > 0.40)
