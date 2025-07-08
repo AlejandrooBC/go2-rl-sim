@@ -11,6 +11,7 @@ class UnitreeGo2Env(gym.Env):
         # Load the MuJoCo model and allocate simulation data
         self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
+        self.prev_x = 0.0 # Track displacement between steps
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
         self.sim_steps = 5
@@ -92,31 +93,35 @@ class UnitreeGo2Env(gym.Env):
         for i in range(self.sim_steps):
             mujoco.mj_step(self.model, self.data)
 
-        # Construct the updated observation
+        # Construct the updated observation and extract roll, pitch, and yaw
         obs = self._construct_observation()
-
-        # Extract roll, pitch, yaw and penalize a large roll/pitch
         rpy = obs[:3]
-        posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2)
 
-        # Define forward position and velocity
+        # Define forward velocity, position, and heights
         forward_velocity = self.data.qvel[0]
         forward_position = self.data.qpos[0]
-
-        # Reward encourages forward motion and staying upright
         z_height = self.data.qpos[2]
         target_height = 0.27
 
-        # Penalize deviation from target height
-        height_penalty = 1.2 * (z_height - target_height) ** 2
+        # Reward shaping
+        posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
+        height_penalty = 1.2 * (z_height - target_height) ** 2 # Encourage maintaining target height
+        torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
+        alive_bonus = 0.15  # Small constant reward to encourage survival
 
-        # Alive bonus to encourage the agent to stay upright longer
-        alive_bonus = 0.1
+        # Compute delta_x
+        delta_x = forward_position - self.prev_x
+        self.prev_x = forward_position
 
-        # Penalize high-torque effort
-        torque_effort = np.sum(np.square(self.data.ctrl))
-
-        reward = 1.5 * forward_velocity - height_penalty - posture_penalty - 0.001 * torque_effort + alive_bonus
+        # Reward function
+        reward = (
+                1.3 * forward_velocity +
+                1.0 * delta_x -
+                height_penalty -
+                posture_penalty -
+                0.001 * torque_effort +
+                alive_bonus
+        )
 
         # Episode ends if robot falls
         terminated = bool(z_height < 0.15 or z_height > 0.40)
@@ -127,6 +132,7 @@ class UnitreeGo2Env(gym.Env):
             "x_position": forward_position,
             "z_height": z_height,
             "x_velocity": forward_velocity,
+            "delta_x": delta_x,
             "reward": reward
         }
 
@@ -142,6 +148,9 @@ class UnitreeGo2Env(gym.Env):
         # Set all joint and base velocities to zero - robot not moving at spawn
         self.data.qvel[:] = self.init_qvel
 
+        # Reset delta_x tracker
+        self.prev_x = 0.0
+
         # Tell MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
         mujoco.mj_forward(self.model, self.data)
 
@@ -154,10 +163,3 @@ class UnitreeGo2Env(gym.Env):
                 self.viewer = viewer.launch_passive(self.model, self.data)
             else:
                 self.viewer.sync()
-
-# # Testing the Go2 environment
-# if __name__ == "__main__":
-#     env = UnitreeGo2Env()
-#     obs, _ = env.reset()
-#     dummy_action = np.zeros(env.action_space.shape)
-#     env.step(dummy_action)
