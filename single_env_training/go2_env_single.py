@@ -12,6 +12,7 @@ class UnitreeGo2Env(gym.Env):
         self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
         self.prev_x = 0.0 # Track displacement between steps
+        self.prev_vel = 0.0 # Track forward velocity for acceleration penalty
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
         self.sim_steps = 5
@@ -105,18 +106,23 @@ class UnitreeGo2Env(gym.Env):
 
         # Reward shaping
         posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
-        height_penalty = 1.2 * (z_height - target_height) ** 2 # Encourage maintaining target height
+        height_penalty = 1.0 * (z_height - target_height) ** 2 # Encourage maintaining target height
         torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
-        alive_bonus = 0.15  # Small constant reward to encourage survival
+        alive_bonus = 0.15 # Small constant reward to encourage survival
 
-        # Compute delta_x
+        # Penalize sudden forward acceleration
+        forward_acc = forward_velocity - self.prev_vel
+        acc_penalty = 0.1 * (forward_acc ** 2)
+        self.prev_vel = forward_velocity
+
+        # Compute delta_x for logging only
         delta_x = forward_position - self.prev_x
         self.prev_x = forward_position
 
         # Reward function
         reward = (
-                1.3 * forward_velocity +
-                1.0 * delta_x -
+                1.3 * forward_velocity -
+                acc_penalty -
                 height_penalty -
                 posture_penalty -
                 0.001 * torque_effort +
@@ -150,6 +156,9 @@ class UnitreeGo2Env(gym.Env):
 
         # Reset delta_x tracker
         self.prev_x = 0.0
+
+        # Reset velocity tracker
+        self.prev_vel = 0.0
 
         # Tell MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
         mujoco.mj_forward(self.model, self.data)
