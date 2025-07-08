@@ -1,7 +1,7 @@
 import time
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-from go2_env import UnitreeGo2Env
+from go2_env_vec import UnitreeGo2Env
 from torch.utils.tensorboard import SummaryWriter
 
 # Create a writer for TensorBoard logs
@@ -18,7 +18,7 @@ eval_env.training = False
 eval_env.norm_reward = False
 
 # Load the trained PPO model
-model = PPO.load("trained_models/ppo_go2_20250707-212621", env=eval_env)
+model = PPO.load("trained_models_vec/ppo_go2_20250707-212621", env=eval_env)
 
 # Number of episodes to evaluate the policy on
 n_eval_episodes = 100

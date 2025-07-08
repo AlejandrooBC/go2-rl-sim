@@ -4,7 +4,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import BaseCallback
-from go2_env import UnitreeGo2Env
+from go2_env_vec import UnitreeGo2Env
 
 # Number of vectorized/parallel environments (train the agent on N environments per step)
 NUM_ENVS = 8
@@ -80,6 +80,6 @@ if __name__ == "__main__":
     )
 
     # Save the model and VecNormalize stats with a unique timestamped filename
-    model.save(f"trained_models/{model_name}")
+    model.save(f"trained_models_vec/{model_name}")
     vec_env.save(f"vecstats/{model_name}_vecnormalize.pkl")
     print(f"Training complete. Model saved as {model_name}.zip, vecstats saved as {model_name}_vecnormalize.pkl.")
