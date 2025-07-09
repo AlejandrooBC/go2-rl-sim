@@ -1,7 +1,7 @@
 import time
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from go2_env_single import UnitreeGo2Env
 
 # Generate a timestamp string to uniquely identify this training run
@@ -45,6 +45,16 @@ model = PPO(
     device="cuda"
 )
 
+
+# Checkpoint saving every 1 million steps
+checkpoint_callback = CheckpointCallback(
+    save_freq=1_000_000,
+    save_path="./trained_models_single/",
+    name_prefix=f"{model_name}_checkpoint_",
+    save_replay_buffer=False,
+    save_vecnormalize=False
+)
+
 """
 Train the model using PPO:
 1. PPO is an on-policy RL algorithm.
@@ -54,9 +64,9 @@ Train the model using PPO:
 3. PPO trains a neural network to output actions (12D control vector)
 """
 model.learn(
-    total_timesteps=4_000_000, # Number of training timesteps
+    total_timesteps=20_000_000, # Number of training timesteps
     tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
-    callback=TensorboardCallback() # Log step count to Tensorboard
+    callback=[TensorboardCallback(), checkpoint_callback] # Log step count to Tensorboard, log checkpoints
 )
 
 # Save the model with a unique timestamped filename
