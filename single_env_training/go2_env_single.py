@@ -139,6 +139,10 @@ class UnitreeGo2Env(gym.Env):
         terminated = bool(z_height < 0.15 or z_height > 0.40)
         truncated = bool(False)
 
+        # Apply fall penalty if the Go2 falls
+        if terminated:
+            reward -= 1
+
         # Info for Tensorboard logging
         info = {
             "x_position": forward_position,
