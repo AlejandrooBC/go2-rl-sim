@@ -13,6 +13,7 @@ class UnitreeGo2Env(gym.Env):
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
         self.prev_x = 0.0 # Track displacement between steps
         self.prev_vel = 0.0 # Track forward velocity for acceleration penalty
+        self.step_counter = 0 # Track the number of steps per episode
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
         self.sim_steps = 5
@@ -119,6 +120,10 @@ class UnitreeGo2Env(gym.Env):
         delta_x = forward_position - self.prev_x
         self.prev_x = forward_position
 
+        # Reward longer-lasting steps (more time alive)
+        self.step_counter += 1
+        duration_reward = 0.01 * self.step_counter
+
         # Reward function
         reward = (
                 1.3 * forward_velocity -
@@ -126,7 +131,8 @@ class UnitreeGo2Env(gym.Env):
                 height_penalty -
                 posture_penalty -
                 0.001 * torque_effort +
-                alive_bonus
+                alive_bonus +
+                duration_reward
         )
 
         # Episode ends if robot falls
@@ -139,6 +145,7 @@ class UnitreeGo2Env(gym.Env):
             "z_height": z_height,
             "x_velocity": forward_velocity,
             "delta_x": delta_x,
+            "steps_alive": self.step_counter,
             "reward": reward
         }
 
@@ -159,6 +166,9 @@ class UnitreeGo2Env(gym.Env):
 
         # Reset velocity tracker
         self.prev_vel = 0.0
+
+        # Reset step counter
+        self.step_counter = 0
 
         # Tell MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
         mujoco.mj_forward(self.model, self.data)

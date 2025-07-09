@@ -24,6 +24,8 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/x_velocity", info["x_velocity"])
         if "delta_x" in info:
             self.logger.record("custom/delta_x", info["delta_x"])
+        if "steps_alive" in info:
+            self.logger.record("custom/steps_alive", info["steps_alive"])
         if "reward" in info:
             self.logger.record("custom/reward", info["reward"])
 
@@ -48,7 +50,7 @@ model = PPO(
 
 # Checkpoint saving every 1 million steps
 checkpoint_callback = CheckpointCallback(
-    save_freq=1_000_000,
+    save_freq=2_000_000,
     save_path="./trained_models_single/",
     name_prefix=f"{model_name}_checkpoint_",
     save_replay_buffer=False,
@@ -64,7 +66,7 @@ Train the model using PPO:
 3. PPO trains a neural network to output actions (12D control vector)
 """
 model.learn(
-    total_timesteps=20_000_000, # Number of training timesteps
+    total_timesteps=15_000_000, # Number of training timesteps
     tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
     callback=[TensorboardCallback(), checkpoint_callback] # Log step count to Tensorboard, log checkpoints
 )
