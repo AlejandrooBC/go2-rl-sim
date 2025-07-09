@@ -66,7 +66,7 @@ Train the model using PPO:
 3. PPO trains a neural network to output actions (12D control vector)
 """
 model.learn(
-    total_timesteps=15_000_000, # Number of training timesteps
+    total_timesteps=25_000_000, # Number of training timesteps
     tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
     callback=[TensorboardCallback(), checkpoint_callback] # Log step count to Tensorboard, log checkpoints
 )

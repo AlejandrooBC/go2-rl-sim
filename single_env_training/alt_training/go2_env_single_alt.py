@@ -122,7 +122,7 @@ class UnitreeGo2Env(gym.Env):
 
         # Reward longer-lasting steps (more time alive)
         self.step_counter += 1
-        duration_reward = 0.01 * self.step_counter
+        duration_reward = 0.0005 * self.step_counter if forward_velocity > 0.1 else 0.0
 
         # Reward function
         reward = (

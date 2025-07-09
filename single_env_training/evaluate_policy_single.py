@@ -8,7 +8,7 @@ writer = SummaryWriter(log_dir="tensorboard/eval")
 
 # Load the custom environment and the trained PPO model
 env = UnitreeGo2Env()
-model = PPO.load("alt_training/trained_alt_models/ppo_go2_20250708-214716_checkpoint__20000000_steps") # Replace this with the correct model's name
+model = PPO.load("alt_training/trained_alt_models/ppo_go2_20250709-120607_checkpoint__2000000_steps") # Replace this with the correct model's name
 
 # Number of episodes to evaluate the policy on
 n_eval_episodes = 100
