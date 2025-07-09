@@ -7,7 +7,7 @@ from scipy.spatial.transform import Rotation as R
 
 # Custom Gymnasium environment for simulating the Unitree Go2 robot using MuJoCo (inherits from Env class)
 class UnitreeGo2Env(gym.Env):
-    def __init__(self, model_path="../mujoco_menagerie/unitree_go2/scene.xml", render_mode="human"):
+    def __init__(self, model_path="../../mujoco_menagerie/unitree_go2/scene.xml", render_mode="human"):
         # Load the MuJoCo model and allocate simulation data
         self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
@@ -112,7 +112,7 @@ class UnitreeGo2Env(gym.Env):
 
         # Penalize sudden forward acceleration
         forward_acc = forward_velocity - self.prev_vel
-        acc_penalty = 1 * (forward_acc ** 2)
+        acc_penalty = 0.5 * (forward_acc ** 2)
         self.prev_vel = forward_velocity
 
         # Compute delta_x for logging only
