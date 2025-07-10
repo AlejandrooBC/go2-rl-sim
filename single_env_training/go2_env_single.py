@@ -99,8 +99,9 @@ class UnitreeGo2Env(gym.Env):
         obs = self._construct_observation()
         rpy = obs[:3]
 
-        # Define forward velocity, position, and heights
+        # Define forward and vertical velocities, position, and heights
         forward_velocity = self.data.qvel[0]
+        vertical_velocity = self.data.qvel[2]
         forward_position = self.data.qpos[0]
         z_height = self.data.qpos[2]
         target_height = 0.27
@@ -116,6 +117,9 @@ class UnitreeGo2Env(gym.Env):
         acc_penalty = 1.2 * (forward_acc ** 2)
         self.prev_vel = forward_velocity
 
+        # Penalize vertical bouncing
+        vertical_acc_penalty = 0.6 * (vertical_velocity ** 2)
+
         # Compute delta_x for logging only
         delta_x = forward_position - self.prev_x
         self.prev_x = forward_position
@@ -128,6 +132,7 @@ class UnitreeGo2Env(gym.Env):
         reward = (
                 1.3 * forward_velocity -
                 acc_penalty -
+                vertical_acc_penalty -
                 height_penalty -
                 posture_penalty -
                 0.001 * torque_effort +
@@ -148,6 +153,7 @@ class UnitreeGo2Env(gym.Env):
             "x_position": forward_position,
             "z_height": z_height,
             "x_velocity": forward_velocity,
+            "z_velocity": vertical_velocity,
             "delta_x": delta_x,
             "steps_alive": self.step_counter,
             "reward": reward

@@ -22,6 +22,8 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/z_height", info["z_height"])
         if "x_velocity" in info:
             self.logger.record("custom/x_velocity", info["x_velocity"])
+        if "z_velocity" in info:
+            self.logger.record("custom/z_velocity", info["z_velocity"])
         if "delta_x" in info:
             self.logger.record("custom/delta_x", info["delta_x"])
         if "steps_alive" in info:
