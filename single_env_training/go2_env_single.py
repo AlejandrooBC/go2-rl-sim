@@ -130,7 +130,7 @@ class UnitreeGo2Env(gym.Env):
 
         # Reward function
         reward = (
-                1.3 * forward_velocity -
+                1.2 * forward_velocity -
                 acc_penalty -
                 vertical_acc_penalty -
                 height_penalty -
