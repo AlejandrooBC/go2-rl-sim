@@ -14,6 +14,7 @@ class UnitreeGo2Env(gym.Env):
         self.prev_x = 0.0 # Track displacement between steps
         self.prev_vel = 0.0 # Track forward velocity for acceleration penalty
         self.step_counter = 0 # Track the number of steps per episode
+        self.tracking_sigma = 0.25 # Forward velocity tracking
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
         self.sim_steps = 5
@@ -105,12 +106,14 @@ class UnitreeGo2Env(gym.Env):
         forward_position = self.data.qpos[0]
         z_height = self.data.qpos[2]
         target_height = 0.27
+        target_velocity = 0.5
+        tracking_velocity = np.exp(-((forward_velocity - target_velocity) ** 2) / self.tracking_sigma)
 
         # Reward shaping
         posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
         height_penalty = 1.0 * (z_height - target_height) ** 2 # Encourage maintaining target height
         torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
-        alive_bonus = 0.1 if forward_velocity > 0.1 else 0.0 # Small constant reward to encourage survival (if moving)
+        alive_bonus = 0.1 if forward_velocity > 0.5 else 0.0 # Small constant reward to encourage survival (if moving)
 
         # Penalize sudden forward acceleration
         forward_acc = forward_velocity - self.prev_vel
@@ -126,11 +129,11 @@ class UnitreeGo2Env(gym.Env):
 
         # Reward longer-lasting steps (more time alive)
         self.step_counter += 1
-        duration_reward = 0.00025 * self.step_counter if forward_velocity > 0.1 else 0.0
+        duration_reward = 0.00025 * self.step_counter if forward_velocity > 0.5 else 0.0
 
         # Reward function
         reward = (
-                1.2 * forward_velocity -
+                tracking_velocity -
                 acc_penalty -
                 vertical_acc_penalty -
                 height_penalty -
