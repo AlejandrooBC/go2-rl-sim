@@ -39,37 +39,38 @@ def make_env():
         return UnitreeGo2Env(render_mode=None) # Disable rendering in parallel training
     return _init
 
-# Create vectorized environment with 4 subprocesses
-env = SubprocVecEnv([make_env() for _ in range(4)])
+if __name__ == "__main__":
+    # Create vectorized environment with 4 subprocesses
+    env = SubprocVecEnv([make_env() for _ in range(4)])
 
-# Create the PPO model
-model = PPO(
-    "MlpPolicy",
-    env,
-    verbose=1,
-    tensorboard_log="./ppo_go2_tensorboard/",
-    n_steps=8192,
-    batch_size=1024,
-    n_epochs=5,
-    device="cuda"
-)
+    # Create the PPO model
+    model = PPO(
+        "MlpPolicy",
+        env,
+        verbose=1,
+        tensorboard_log="./ppo_go2_tensorboard/",
+        n_steps=8192,
+        batch_size=1024,
+        n_epochs=5,
+        device="cuda"
+    )
 
-# Save model every 2 million steps
-checkpoint_callback = CheckpointCallback(
-    save_freq=2_000_000,
-    save_path="./trained_models_vec/",
-    name_prefix=f"{model_name}_checkpoint_",
-    save_replay_buffer=False,
-    save_vecnormalize=False
-)
+    # Save model every 2 million steps
+    checkpoint_callback = CheckpointCallback(
+        save_freq=2_000_000,
+        save_path="./trained_models_vec/",
+        name_prefix=f"{model_name}_checkpoint_",
+        save_replay_buffer=False,
+        save_vecnormalize=False
+    )
 
-# Train the PPO agent
-model.learn(
-    total_timesteps=30_000_000,
-    tb_log_name=f"run_{timestamp}",
-    callback=[TensorboardCallback(), checkpoint_callback]
-)
+    # Train the PPO agent
+    model.learn(
+        total_timesteps=30_000_000,
+        tb_log_name=f"run_{timestamp}",
+        callback=[TensorboardCallback(), checkpoint_callback]
+    )
 
-# Save final model
-model.save(f"trained_models_vec/{model_name}")
-print(f"Training complete. Model saved as '{model_name}.zip'")
+    # Save final model
+    model.save(f"trained_models_vec/{model_name}")
+    print(f"Training complete. Model saved as '{model_name}.zip'")
