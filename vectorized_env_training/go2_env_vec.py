@@ -110,14 +110,19 @@ class UnitreeGo2Env(gym.Env):
         ang_vel = self.data.qvel[3:6]
         forward_pos = self.data.qpos[0]
         z_height = self.data.qpos[2]
+        pose_diff = self.data.qpos[7:] - self.homing_pose
 
         # Reward shaping
-        lin_vel_reward = np.exp(-np.square(forward_vel - self.target_vel))
+        if forward_vel > 0.1:
+            lin_vel_reward = np.exp(-np.square(forward_vel - self.target_vel))
+            pose_reward = np.exp(-np.square(pose_diff).sum())
+            alive_bonus = 0.05
+        else:
+            lin_vel_reward = 0.0
+            pose_reward = 0.05
+            alive_bonus = 0.0
+
         ang_vel_reward = np.exp(-np.square(ang_vel).sum())
-
-        pose_diff = self.data.qpos[7:] - self.homing_pose
-        pose_reward = np.exp(-np.square(pose_diff).sum()) if forward_vel > 0.1 else 0.05
-
         height_penalty = np.square(z_height - 0.27)
         roll_pitch_penalty = rpy[0]**2 + rpy[1]**2
         vert_vel_penalty = np.square(vertical_vel)
@@ -125,22 +130,17 @@ class UnitreeGo2Env(gym.Env):
         action_rate_penalty = np.square(action - self.prev_action).sum()
         self.prev_action = action.copy()
 
-        alive_bonus = 0.05 if forward_vel > 0.1 else 0.0 # Small constant reward to encourage survival (if moving)
-
         # Reward function (pre-multiplier)
         reward = (
-            2.0 * lin_vel_reward
+            1.5 * lin_vel_reward
             + 0.5 * ang_vel_reward
-            + 1.0 * pose_reward
+            + 0.8 * pose_reward
             - 2.0 * height_penalty
             - 0.5 * roll_pitch_penalty
             - 0.5 * vert_vel_penalty
             - 0.001 * action_rate_penalty
             + alive_bonus
         )
-
-        # Amplify total reward signal
-        reward *= 2.0
 
         # NaN/Inf safeguard (debug print if unstable)
         if not np.isfinite(reward):
