@@ -23,14 +23,14 @@ class UnitreeGo2Env(gym.Env):
 
         # Initial Go2 configuration: base pose and joint angles
         self.init_qpos = np.array([
-            0, 0, 0.27,  # Base position (x = 0, y = 0, z = 0.27 m) --> slightly above the floor
-            1, 0, 0, 0,  # Base orientation quaternion (w, x, y, z) --> robot is upright with no rotation
+            0, 0, 0.27, # Base position (x = 0, y = 0, z = 0.27 m) --> slightly above the floor
+            1, 0, 0, 0, # Base orientation quaternion (w, x, y, z) --> robot is upright with no rotation
 
             # Joint angles for each leg: abduction (side swing), hip (forward/back), knee (extension/flexion)
-            0, 0.9, -1.8,  # Front-left
-            0, 0.9, -1.8,  # Front-right
-            0, 0.9, -1.8,  # Rear-left
-            0, 0.9, -1.8  # Rear-right
+            0, 0.9, -1.8, # Front-left
+            0, 0.9, -1.8, # Front-right
+            0, 0.9, -1.8, # Rear-left
+            0, 0.9, -1.8 # Rear-right
         ])
 
         # Initial Go2 velocities: 6 base DOFs + 12 joints = 18 total velocity DOFs --> all start at zero (static spawn)

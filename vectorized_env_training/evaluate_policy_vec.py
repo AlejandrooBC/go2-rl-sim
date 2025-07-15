@@ -1,31 +1,21 @@
 import time
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from go2_env_vec import UnitreeGo2Env
 from torch.utils.tensorboard import SummaryWriter
 
+# Enable rendering for evaluation
+env = UnitreeGo2Env(render_mode="human")
+model = PPO.load("trained_models_vec/model_name")  # Update filename
+
 # Create a writer for TensorBoard logs
 writer = SummaryWriter(log_dir="tensorboard/eval")
-
-# Create and wrap the evaluation environment in DummyVecEnv
-eval_env = DummyVecEnv([lambda: UnitreeGo2Env(render_mode="human")])
-
-# Load the VecNormalize stats from training
-eval_env = VecNormalize.load("vecstats/ppo_go2_20250707-212621_vecnormalize.pkl", eval_env)
-
-# Set to evaluation mode (disable running stats updates, disable reward normalization)
-eval_env.training = False
-eval_env.norm_reward = False
-
-# Load the trained PPO model
-model = PPO.load("trained_models_vec/ppo_go2_20250707-212621", env=eval_env)
 
 # Number of episodes to evaluate the policy on
 n_eval_episodes = 100
 
 # Loop through evaluation episodes
 for ep in range(n_eval_episodes):
-    obs = eval_env.reset() # Reset environment to start state
+    obs, _ = env.reset() # Reset environment to start state
     done = False
     ep_reward = 0
     steps = 0
@@ -36,17 +26,17 @@ for ep in range(n_eval_episodes):
         action, _ = model.predict(obs, deterministic=True)
 
         # Step through the environment using the action
-        obs, reward, done, info = eval_env.step(action)
+        obs, reward, terminated, truncated, _ = env.step(action)
 
-        # Render the robot from the underlying environment
-        eval_env.envs[0].render()
+        # Render the robot from the environment
+        env.render()
         time.sleep(0.03)
 
         # Check for the episode's end
-        done = done[0]
+        done = terminated or truncated
 
         # Accumulate reward and count steps
-        ep_reward += reward[0] # Reward is a numpy array of shape (1,) due to VecEnv
+        ep_reward += reward
         steps += 1
 
     # Print and log reward to Tensorboard
