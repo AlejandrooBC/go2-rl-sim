@@ -104,10 +104,10 @@ class UnitreeGo2Env(gym.Env):
         obs = self._construct_observation()
         rpy = obs[0:3]
 
-        # Define observations for rewards
-        forward_vel = obs[3]
-        vertical_vel = obs[5]
-        ang_vel = obs[6:9]
+        # Extract physical measurements from sim
+        forward_vel = self.data.qvel[0]
+        vertical_vel = self.data.qvel[2]
+        ang_vel = self.data.qvel[3:6]
         forward_pos = self.data.qpos[0]
         z_height = self.data.qpos[2]
 
@@ -116,7 +116,7 @@ class UnitreeGo2Env(gym.Env):
         ang_vel_reward = np.exp(-np.square(ang_vel).sum())
 
         pose_diff = self.data.qpos[7:] - self.homing_pose
-        pose_reward = np.exp(-np.square(pose_diff).sum())
+        pose_reward = np.exp(-np.square(pose_diff).sum()) if forward_vel > 0.1 else 0.05
 
         height_penalty = np.square(z_height - 0.27)
         roll_pitch_penalty = rpy[0]**2 + rpy[1]**2
@@ -125,19 +125,26 @@ class UnitreeGo2Env(gym.Env):
         action_rate_penalty = np.square(action - self.prev_action).sum()
         self.prev_action = action.copy()
 
-        alive_bonus = 0.2 if forward_vel > 0.1 else 0.0 # Small constant reward to encourage survival (if moving)
+        alive_bonus = 0.05 if forward_vel > 0.1 else 0.0 # Small constant reward to encourage survival (if moving)
 
-        # Reward function
+        # Reward function (pre-multiplier)
         reward = (
-            1.0 * lin_vel_reward
+            2.0 * lin_vel_reward
             + 0.5 * ang_vel_reward
             + 1.0 * pose_reward
-            - 1.0 * height_penalty
-            - 0.2 * roll_pitch_penalty
-            - 0.1 * vert_vel_penalty
+            - 2.0 * height_penalty
+            - 0.5 * roll_pitch_penalty
+            - 0.5 * vert_vel_penalty
             - 0.001 * action_rate_penalty
             + alive_bonus
         )
+
+        # Amplify total reward signal
+        reward *= 2.0
+
+        # NaN/Inf safeguard (debug print if unstable)
+        if not np.isfinite(reward):
+            print(f"[NaN Warning] reward={reward}, z={z_height}, vel={forward_vel}, obs[0:3]={rpy}")
 
         # Compute delta_x for logging only
         delta_x = forward_pos - self.prev_x
@@ -146,12 +153,13 @@ class UnitreeGo2Env(gym.Env):
         self.step_counter += 1
 
         # Episode ends if robot falls
-        terminated = bool(z_height < 0.15 or z_height > 0.40)
-        truncated = bool(False)
+        terminated = z_height < 0.15 or z_height > 0.35
+        truncated = False
 
         # Apply fall penalty if the Go2 falls
         if terminated:
             reward -= 1
+            print(f"[Terminated] Step={self.step_counter}, z={z_height:.3f}, reward={reward:.3f}")
 
         # Info for Tensorboard logging
         info = {
