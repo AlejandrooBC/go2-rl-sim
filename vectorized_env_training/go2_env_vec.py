@@ -159,7 +159,6 @@ class UnitreeGo2Env(gym.Env):
         # Apply fall penalty if the Go2 falls
         if terminated:
             reward -= 1
-            print(f"[Terminated] Step={self.step_counter}, z={z_height:.3f}, reward={reward:.3f}")
 
         # Info for Tensorboard logging
         info = {
