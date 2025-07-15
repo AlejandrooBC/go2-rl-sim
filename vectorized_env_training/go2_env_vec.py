@@ -113,8 +113,9 @@ class UnitreeGo2Env(gym.Env):
         pose_diff = self.data.qpos[7:] - self.homing_pose
 
         # Reward shaping
-        if forward_vel > 0.1:
+        if forward_vel > 0.02:
             lin_vel_reward = np.exp(-np.square(forward_vel - self.target_vel))
+            lin_vel_reward += 0.1 * forward_vel
             pose_reward = np.exp(-np.square(pose_diff).sum())
             alive_bonus = 0.05
         else:
@@ -153,8 +154,8 @@ class UnitreeGo2Env(gym.Env):
         self.step_counter += 1
 
         # Episode ends if robot falls
-        terminated = z_height < 0.15 or z_height > 0.35
-        truncated = False
+        terminated = bool(z_height < 0.15 or z_height > 0.35)
+        truncated = bool(False)
 
         # Apply fall penalty if the Go2 falls
         if terminated:
