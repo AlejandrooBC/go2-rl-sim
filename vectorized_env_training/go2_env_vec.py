@@ -102,23 +102,32 @@ class UnitreeGo2Env(gym.Env):
         z_height = self.data.qpos[2]
         pose_diff = self.data.qpos[7:] - self.homing_pose
 
-        lin_vel_reward = 1.0 - np.abs(forward_vel - self.target_vel)
-        pose_penalty = np.sum(np.square(pose_diff)) # Penalizes deviation from homing pose
-        height_penalty = np.square(z_height - 0.27) # Penalizes crouching or hopping
+        # Rewards and penalties
+        # lin_vel_reward = forward_vel if forward_vel > 0 else -1.0 # Reward forward velocity
+        if forward_vel <= 0:
+            lin_vel_reward = -1.0
+        else:
+            lin_vel_reward = 1.0 - abs(forward_vel - self.target_vel)
+        lin_vel_reward = np.clip(lin_vel_reward, -1.0, 1.0)
+        pose_penalty = np.clip(np.sum(np.square(pose_diff)), 0, 5.0) # Penalizes deviation from homing pose
+        height_penalty = np.clip((z_height - 0.27) ** 2, 0, 5.0) # Penalizes crouching or hopping
         roll_pitch_penalty = rpy[0]**2 + rpy[1]**2 # Penalizes tilt
         vert_vel_penalty = vertical_vel**2 # Penalizes vertical bobbing
         ang_vel_penalty = np.sum(np.square(ang_vel)) # Penalizes rapid rotations
         action_rate_penalty = np.sum(np.square(action - self.prev_action)) # Smooth actuator control
+        self.prev_action = action.copy() # Updating previous action at the end of the step
+        alive_bonus = 0.05 if forward_vel > 0 else 0.0
 
         # Reward function
         reward = (
-            3.0 * lin_vel_reward
+            5.0 * lin_vel_reward
             - 0.5 * pose_penalty
             - 0.5 * height_penalty
             - 0.3 * roll_pitch_penalty
             - 0.2 * vert_vel_penalty
             - 0.1 * ang_vel_penalty
             - 0.005 * action_rate_penalty
+            + alive_bonus
         )
 
         # NaN/Inf safeguard (debug print if unstable)
@@ -133,10 +142,6 @@ class UnitreeGo2Env(gym.Env):
         # Episode ends if robot falls
         terminated = bool(z_height < 0.15 or z_height > 0.40)
         truncated = bool(False)
-
-        # Small alive bonus if Go2 is within the height range
-        if 0.15 < z_height < 0.40:
-            reward += 0.1
 
         # Apply fall penalty if the Go2 falls
         if terminated:

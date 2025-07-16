@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     # Train the PPO agent
     model.learn(
-        total_timesteps=5_000_000,
+        total_timesteps=10_000_000,
         tb_log_name=f"run_{timestamp}",
         callback=[TensorboardCallback(), checkpoint_callback]
     )

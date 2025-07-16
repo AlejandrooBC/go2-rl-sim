@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Enable rendering for evaluation
 env = UnitreeGo2Env(render_mode="human")
-model = PPO.load("trained_models_vec/model_name")  # Update filename
+model = PPO.load("trained_models_vec/ppo_go2_vec_20250716-132851_checkpoint__4000000_steps")  # Update filename
 
 # Create a writer for TensorBoard logs
 writer = SummaryWriter(log_dir="tensorboard/eval")
