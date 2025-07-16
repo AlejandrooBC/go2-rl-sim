@@ -40,8 +40,9 @@ def make_env():
     return _init
 
 if __name__ == "__main__":
-    # Create vectorized environment with 4 subprocesses
-    env = SubprocVecEnv([make_env() for _ in range(4)])
+    # Create vectorized environment with n_envs (subprocesses)
+    n_envs = 4
+    env = SubprocVecEnv([make_env() for _ in range(n_envs)])
 
     # Create the PPO model
     model = PPO(
@@ -55,9 +56,9 @@ if __name__ == "__main__":
         device="cuda"
     )
 
-    # Save model every 2 million steps
+    # Save model every 2M total timesteps = 2 million / 4 per subprocess
     checkpoint_callback = CheckpointCallback(
-        save_freq=2_000_000,
+        save_freq=int(2_000_000 / n_envs),
         save_path="./trained_models_vec/",
         name_prefix=f"{model_name}_checkpoint_",
         save_replay_buffer=False,
@@ -66,7 +67,7 @@ if __name__ == "__main__":
 
     # Train the PPO agent
     model.learn(
-        total_timesteps=30_000_000,
+        total_timesteps=5_000_000,
         tb_log_name=f"run_{timestamp}",
         callback=[TensorboardCallback(), checkpoint_callback]
     )

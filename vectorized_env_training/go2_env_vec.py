@@ -18,7 +18,6 @@ class UnitreeGo2Env(gym.Env):
         self.sim_steps = 5
         self.step_counter = 0
         self.prev_x = 0.0
-        self.prev_vel = 0.0
         self.prev_action = np.zeros(self.model.nu)
 
         # Define homing joint positions (standing pose) with shape = (12,)
@@ -29,7 +28,7 @@ class UnitreeGo2Env(gym.Env):
             0.0, 0.9, -1.8
         ])
 
-        self.action_scale = 0.5 # Can tune this | how large actions output by policy are (physical joint movements)
+        self.action_scale = 1.0 # Can tune this | how large actions output by policy are (physical joint movements)
         self.target_vel = 0.5 # Track desired velocity
 
         # Initial Go2 configuration: base pose and joint angles
@@ -74,17 +73,8 @@ class UnitreeGo2Env(gym.Env):
         joint_pos = self.data.qpos[7:]
         joint_vel = self.data.qvel[6:]
 
-        # Normalize all observation components
-        rpy /= np.pi
-        lin_vel /= 2.0
-        ang_vel /= 4.0
-        joint_pos /= np.pi
-        joint_vel /= 10.0
-        prev_action = np.clip(self.prev_action, -1.0, 1.0)
-        target_vel_norm = self.target_vel / 2.0
-
         # Final observation vector: orientation, base motion, joint states, previous action
-        obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel, prev_action, [target_vel_norm]])
+        obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel, self.prev_action])
         return obs.astype(np.float32)
 
     # The core loop of the environment - each time our PPO agent sends an action, this happens:
@@ -112,35 +102,23 @@ class UnitreeGo2Env(gym.Env):
         z_height = self.data.qpos[2]
         pose_diff = self.data.qpos[7:] - self.homing_pose
 
-        # Reward shaping
-        if forward_vel > 0.02:
-            lin_vel_reward = np.exp(-np.square(forward_vel - self.target_vel))
-            lin_vel_reward += 0.1 * forward_vel
-            pose_reward = np.exp(-np.square(pose_diff).sum())
-            alive_bonus = 0.05
-        else:
-            lin_vel_reward = 0.0
-            pose_reward = 0.05
-            alive_bonus = 0.0
+        lin_vel_reward = 1.0 - np.abs(forward_vel - self.target_vel)
+        pose_penalty = np.sum(np.square(pose_diff)) # Penalizes deviation from homing pose
+        height_penalty = np.square(z_height - 0.27) # Penalizes crouching or hopping
+        roll_pitch_penalty = rpy[0]**2 + rpy[1]**2 # Penalizes tilt
+        vert_vel_penalty = vertical_vel**2 # Penalizes vertical bobbing
+        ang_vel_penalty = np.sum(np.square(ang_vel)) # Penalizes rapid rotations
+        action_rate_penalty = np.sum(np.square(action - self.prev_action)) # Smooth actuator control
 
-        ang_vel_reward = np.exp(-np.square(ang_vel).sum())
-        height_penalty = np.square(z_height - 0.27)
-        roll_pitch_penalty = rpy[0]**2 + rpy[1]**2
-        vert_vel_penalty = np.square(vertical_vel)
-
-        action_rate_penalty = np.square(action - self.prev_action).sum()
-        self.prev_action = action.copy()
-
-        # Reward function (pre-multiplier)
+        # Reward function
         reward = (
-            1.5 * lin_vel_reward
-            + 0.5 * ang_vel_reward
-            + 0.8 * pose_reward
-            - 2.0 * height_penalty
-            - 0.5 * roll_pitch_penalty
-            - 0.5 * vert_vel_penalty
-            - 0.001 * action_rate_penalty
-            + alive_bonus
+            3.0 * lin_vel_reward
+            - 0.5 * pose_penalty
+            - 0.5 * height_penalty
+            - 0.3 * roll_pitch_penalty
+            - 0.2 * vert_vel_penalty
+            - 0.1 * ang_vel_penalty
+            - 0.005 * action_rate_penalty
         )
 
         # NaN/Inf safeguard (debug print if unstable)
@@ -150,12 +128,15 @@ class UnitreeGo2Env(gym.Env):
         # Compute delta_x for logging only
         delta_x = forward_pos - self.prev_x
         self.prev_x = forward_pos
-        self.prev_vel = forward_vel
         self.step_counter += 1
 
         # Episode ends if robot falls
-        terminated = bool(z_height < 0.15 or z_height > 0.35)
+        terminated = bool(z_height < 0.15 or z_height > 0.40)
         truncated = bool(False)
+
+        # Small alive bonus if Go2 is within the height range
+        if 0.15 < z_height < 0.40:
+            reward += 0.1
 
         # Apply fall penalty if the Go2 falls
         if terminated:
@@ -180,7 +161,6 @@ class UnitreeGo2Env(gym.Env):
         self.data.qpos[:] = self.init_qpos # Set initial robot pose for the Go2 based on go2.xml
         self.data.qvel[:] = self.init_qvel # Set all joint and base velocities to zero - robot not moving at spawn
         self.prev_x = 0.0 # Reset delta_x tracker
-        self.prev_vel = 0.0 # Reset velocity tracker
         self.prev_action = np.zeros(self.model.nu) # Reset previous action
         self.step_counter = 0 # Reset step counter
         mujoco.mj_forward(self.model, self.data) # Re-calculate states
