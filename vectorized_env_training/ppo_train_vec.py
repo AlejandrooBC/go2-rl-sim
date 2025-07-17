@@ -2,6 +2,7 @@ import time
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
+from stable_baselines3.common.vec_env import VecNormalize
 from go2_env_vec import UnitreeGo2Env
 
 # Timestamped model name
@@ -43,6 +44,9 @@ if __name__ == "__main__":
     # Create vectorized environment with n_envs (subprocesses)
     n_envs = 4
     env = SubprocVecEnv([make_env() for _ in range(n_envs)])
+    env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.0)
+    env.training = True
+    env.norm_reward = True
 
     # Create the PPO model
     model = PPO(
@@ -62,7 +66,7 @@ if __name__ == "__main__":
         save_path="./trained_models_vec/",
         name_prefix=f"{model_name}_checkpoint_",
         save_replay_buffer=False,
-        save_vecnormalize=False
+        save_vecnormalize=True
     )
 
     # Train the PPO agent
@@ -72,6 +76,7 @@ if __name__ == "__main__":
         callback=[TensorboardCallback(), checkpoint_callback]
     )
 
-    # Save final model
+    # Save final model and normalization stats
     model.save(f"trained_models_vec/{model_name}")
+    env.save("vecstats/vecnormalize.pkl")
     print(f"Training complete. Model saved as '{model_name}.zip'")
