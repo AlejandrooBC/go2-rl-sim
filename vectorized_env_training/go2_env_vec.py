@@ -18,18 +18,8 @@ class UnitreeGo2Env(gym.Env):
         self.sim_steps = 5
         self.step_counter = 0
         self.prev_x = 0.0
-        self.prev_action = np.zeros(self.model.nu)
-
-        # Define homing joint positions (standing pose) with shape = (12,)
-        self.homing_pose = np.array([
-            0.0, 0.9, -1.8,
-            0.0, 0.9, -1.8,
-            0.0, 0.9, -1.8,
-            0.0, 0.9, -1.8
-        ])
-
-        self.action_scale = 1.0 # Can tune this | how large actions output by policy are (physical joint movements)
-        self.target_vel = 0.5 # Track desired velocity
+        self.prev_vel = 0.0
+        self.target_height = 0.27
 
         # Initial Go2 configuration: base pose and joint angles
         self.init_qpos = np.array([
@@ -74,17 +64,25 @@ class UnitreeGo2Env(gym.Env):
         joint_vel = self.data.qvel[6:]
 
         # Final observation vector: orientation, base motion, joint states, previous action
-        obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel, self.prev_action])
+        obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel])
         return obs.astype(np.float32)
 
     # The core loop of the environment - each time our PPO agent sends an action, this happens:
     def step(self, action):
         action = np.clip(action, -1.0, 1.0) # Clamp action to safe range
-        target_pos = self.homing_pose + action * self.action_scale # Action transformation (based on homing pose)
+
+        # Ctrl_range = Array of shape (n_actuators, 2) = (12, 2)
+        # Defines min and max control signal (torque, position, target, etc.) for each actuator
+        ctrl_range = self.model.actuator_ctrlrange
+
+        # Mid is the midpoint of each actuator's range, amp is the half range
+        mid = 0.5 * (ctrl_range[:, 0] + ctrl_range[:, 1])  # Mid = 0.5 * (min values + max values)
+        amp = 0.5 * (ctrl_range[:, 1] - ctrl_range[:, 0])  # Amp = 0.5 * (max values - min values)
+        scaled_action = mid + action * amp  # Rescales action ∈ [-1, 1] to scaled_action ∈ [min, max]
 
         # Feeding control signal (input) to the robot - array of size 12 (number of actuators on the Go2)
         # The Go2 has 4 legs, 3 actuators per leg (abduction, hip, knee) = 12 total actuators
-        self.data.ctrl[:] = target_pos
+        self.data.ctrl[:] = scaled_action
 
         # Step the physics forward several times for smoother simulation
         for _ in range(self.sim_steps):
@@ -97,37 +95,30 @@ class UnitreeGo2Env(gym.Env):
         # Extract physical measurements from sim
         forward_vel = self.data.qvel[0]
         vertical_vel = self.data.qvel[2]
-        ang_vel = self.data.qvel[3:6]
         forward_pos = self.data.qpos[0]
         z_height = self.data.qpos[2]
-        pose_diff = self.data.qpos[7:] - self.homing_pose
 
         # Rewards and penalties
-        # lin_vel_reward = forward_vel if forward_vel > 0 else -1.0 # Reward forward velocity
-        if forward_vel <= 0:
-            lin_vel_reward = -1.0
-        else:
-            lin_vel_reward = 1.0 - abs(forward_vel - self.target_vel)
-        lin_vel_reward = np.clip(lin_vel_reward, -1.0, 1.0)
-        pose_penalty = np.clip(np.sum(np.square(pose_diff)), 0, 5.0) # Penalizes deviation from homing pose
-        height_penalty = np.clip((z_height - 0.27) ** 2, 0, 5.0) # Penalizes crouching or hopping
-        roll_pitch_penalty = rpy[0]**2 + rpy[1]**2 # Penalizes tilt
-        vert_vel_penalty = vertical_vel**2 # Penalizes vertical bobbing
-        ang_vel_penalty = np.sum(np.square(ang_vel)) # Penalizes rapid rotations
-        action_rate_penalty = np.sum(np.square(action - self.prev_action)) # Smooth actuator control
-        self.prev_action = action.copy() # Updating previous action at the end of the step
-        alive_bonus = 0.05 if forward_vel > 0 else 0.0
+        posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
+        height_penalty = 1.0 * (z_height - self.target_height) ** 2 # Encourage maintaining target height
+        torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
+        alive_bonus = 0.1 # Small constant reward to encourage survival
+        duration_reward = 0.00025 * self.step_counter if forward_vel > 0.1 else 0.0 # Small reward to keep moving
+
+        # Penalize sudden forward acceleration
+        forward_acc = forward_vel - self.prev_vel
+        acc_penalty = 1.2 * (forward_acc ** 2)
+        self.prev_vel = forward_vel
 
         # Reward function
         reward = (
-            5.0 * lin_vel_reward
-            - 0.5 * pose_penalty
-            - 0.5 * height_penalty
-            - 0.3 * roll_pitch_penalty
-            - 0.2 * vert_vel_penalty
-            - 0.1 * ang_vel_penalty
-            - 0.005 * action_rate_penalty
+            1.3 * forward_vel
+            - acc_penalty
+            - height_penalty
+            - posture_penalty
+            - 0.001 * torque_effort
             + alive_bonus
+            + duration_reward
         )
 
         # NaN/Inf safeguard (debug print if unstable)
@@ -166,7 +157,7 @@ class UnitreeGo2Env(gym.Env):
         self.data.qpos[:] = self.init_qpos # Set initial robot pose for the Go2 based on go2.xml
         self.data.qvel[:] = self.init_qvel # Set all joint and base velocities to zero - robot not moving at spawn
         self.prev_x = 0.0 # Reset delta_x tracker
-        self.prev_action = np.zeros(self.model.nu) # Reset previous action
+        self.prev_vel = 0.0 # Reset previous velocity
         self.step_counter = 0 # Reset step counter
         mujoco.mj_forward(self.model, self.data) # Re-calculate states
         return self._construct_observation(), {}
