@@ -14,7 +14,6 @@ class UnitreeGo2Env(gym.Env):
         self.prev_x = 0.0 # Track displacement between steps
         self.prev_vel = 0.0 # Track forward velocity for acceleration penalty
         self.step_counter = 0 # Track the number of steps per episode
-        self.tracking_sigma = 0.25 # Forward velocity tracking
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
         self.sim_steps = 5
@@ -23,14 +22,14 @@ class UnitreeGo2Env(gym.Env):
 
         # Initial Go2 configuration: base pose and joint angles
         self.init_qpos = np.array([
-            0, 0, 0.27, # Base position (x = 0, y = 0, z = 0.27 m) --> slightly above the floor
-            1, 0, 0, 0, # Base orientation quaternion (w, x, y, z) --> robot is upright with no rotation
+            0, 0, 0.27,  # Base position (x = 0, y = 0, z = 0.27 m) --> slightly above the floor
+            1, 0, 0, 0,  # Base orientation quaternion (w, x, y, z) --> robot is upright with no rotation
 
             # Joint angles for each leg: abduction (side swing), hip (forward/back), knee (extension/flexion)
-            0, 0.9, -1.8, # Front-left
-            0, 0.9, -1.8, # Front-right
-            0, 0.9, -1.8, # Rear-left
-            0, 0.9, -1.8 # Rear-right
+            0, 0.9, -1.8,  # Front-left
+            0, 0.9, -1.8,  # Front-right
+            0, 0.9, -1.8,  # Rear-left
+            0, 0.9, -1.8  # Rear-right
         ])
 
         # Initial Go2 velocities: 6 base DOFs + 12 joints = 18 total velocity DOFs --> all start at zero (static spawn)
@@ -100,28 +99,22 @@ class UnitreeGo2Env(gym.Env):
         obs = self._construct_observation()
         rpy = obs[:3]
 
-        # Define forward and vertical velocities, position, and heights
+        # Define forward velocity, position, and heights
         forward_velocity = self.data.qvel[0]
-        vertical_velocity = self.data.qvel[2]
         forward_position = self.data.qpos[0]
         z_height = self.data.qpos[2]
         target_height = 0.27
-        target_velocity = 0.5
-        tracking_velocity = np.exp(-((forward_velocity - target_velocity) ** 2) / self.tracking_sigma)
 
         # Reward shaping
-        posture_penalty = 0.2 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
+        posture_penalty = 0.3 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
         height_penalty = 1.0 * (z_height - target_height) ** 2 # Encourage maintaining target height
         torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
-        alive_bonus = 0.1 if forward_velocity > 0.5 else 0.0 # Small constant reward to encourage survival (if moving)
+        alive_bonus = 0.1 # Small constant reward to encourage survival
 
         # Penalize sudden forward acceleration
         forward_acc = forward_velocity - self.prev_vel
-        acc_penalty = 1.4 * (forward_acc ** 2)
+        acc_penalty = 1.2 * (forward_acc ** 2)
         self.prev_vel = forward_velocity
-
-        # Penalize vertical bouncing
-        vertical_acc_penalty = 0.6 * (vertical_velocity ** 2)
 
         # Compute delta_x for logging only
         delta_x = forward_position - self.prev_x
@@ -129,13 +122,12 @@ class UnitreeGo2Env(gym.Env):
 
         # Reward longer-lasting steps (more time alive)
         self.step_counter += 1
-        duration_reward = 0.00025 * self.step_counter if forward_velocity > 0.5 else 0.0
+        duration_reward = 0.00025 * self.step_counter if forward_velocity > 0.1 else 0.0
 
         # Reward function
         reward = (
-                tracking_velocity -
+                1.3 * forward_velocity -
                 acc_penalty -
-                vertical_acc_penalty -
                 height_penalty -
                 posture_penalty -
                 0.001 * torque_effort +
@@ -156,7 +148,6 @@ class UnitreeGo2Env(gym.Env):
             "x_position": forward_position,
             "z_height": z_height,
             "x_velocity": forward_velocity,
-            "z_velocity": vertical_velocity,
             "delta_x": delta_x,
             "steps_alive": self.step_counter,
             "reward": reward

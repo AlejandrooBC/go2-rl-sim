@@ -1,14 +1,14 @@
+import time
 from stable_baselines3 import PPO
 from go2_env_single import UnitreeGo2Env
 from torch.utils.tensorboard import SummaryWriter
-import time
 
 # Create a writer for TensorBoard logs
 writer = SummaryWriter(log_dir="tensorboard/eval")
 
 # Load the custom environment and the trained PPO model
 env = UnitreeGo2Env()
-model = PPO.load("trained_models_single/ppo_go2_20250711-014306_checkpoint__28000000_steps") # Replace this with the correct model's name
+model = PPO.load("trained_models_single/ppo_go2_20250709-172239") # Replace this with the correct model's name
 
 # Number of episodes to evaluate the policy on
 n_eval_episodes = 100
@@ -40,7 +40,7 @@ for ep in range(n_eval_episodes):
         steps += 1
 
     # Print and log reward to Tensorboard
-    print(f"Episode {ep + 1} reward: {ep_reward}")
+    print(f"Episode: {ep + 1} | Reward: {ep_reward} | Steps: {steps}")
     writer.add_scalar("eval/episode_reward", ep_reward, ep)
 
 # Close the Tensorboard writer

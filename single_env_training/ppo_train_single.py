@@ -22,8 +22,6 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/z_height", info["z_height"])
         if "x_velocity" in info:
             self.logger.record("custom/x_velocity", info["x_velocity"])
-        if "z_velocity" in info:
-            self.logger.record("custom/z_velocity", info["z_velocity"])
         if "delta_x" in info:
             self.logger.record("custom/delta_x", info["delta_x"])
         if "steps_alive" in info:
@@ -37,42 +35,27 @@ class TensorboardCallback(BaseCallback):
 env = UnitreeGo2Env()
 check_env(env, warn=True)
 
-# Create the PPO model
-model = PPO(
-    "MlpPolicy", # Use a multi-layer perceptron (MLP) policy
-    env, # Custom Go2 environment
-    verbose=1, # Print training progress to terminal
-    tensorboard_log="./ppo_go2_tensorboard/", # Enable Tensorboard logging (path to save logs)
-    n_steps=8192,
-    batch_size=1024,
-    n_epochs=5,
-    device="cuda"
-)
+# Load gallop model and attach environment
+model = PPO.load("trained_models_single/ppo_go2_20250709-172239", env=env)
+model.set_env(env)
 
-
-# Checkpoint saving every 1 million steps
+# Setup checkpoint saving
 checkpoint_callback = CheckpointCallback(
-    save_freq=2_000_000,
+    save_freq=200_000,
     save_path="./trained_models_single/",
     name_prefix=f"{model_name}_checkpoint_",
     save_replay_buffer=False,
     save_vecnormalize=False
 )
 
-"""
-Train the model using PPO:
-1. PPO is an on-policy RL algorithm.
-- It collects fresh data using the current policy to update itself.
-- Improves sample quality, but it can't reuse old data.
-2. PPO uses gradient ascent to update the policy's weights.
-3. PPO trains a neural network to output actions (12D control vector)
-"""
+# Fine-tune the model
 model.learn(
-    total_timesteps=35_000_000, # Number of training timesteps
-    tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
-    callback=[TensorboardCallback(), checkpoint_callback] # Log step count to Tensorboard, log checkpoints
+    total_timesteps=1_000_000, # Training timesteps
+    tb_log_name=f"run_finetune_{timestamp}",
+    callback=[TensorboardCallback(), checkpoint_callback],
+    reset_num_timesteps=False # IMPORTANT: Continue from gallop training
 )
 
-# Save the model with a unique timestamped filename
+# Save the final fine-tuned model
 model.save(f"trained_models_single/{model_name}")
-print(f"Training complete. Model saved as '{model_name}.zip'")
+print(f"Fine-tuning complete. Model saved as '{model_name}.zip'")
