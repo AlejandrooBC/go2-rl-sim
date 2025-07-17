@@ -6,14 +6,14 @@ from stable_baselines3.common.vec_env import VecNormalize,DummyVecEnv
 
 # Load environment and normalization wrapper
 dummy_env = DummyVecEnv([lambda: UnitreeGo2Env(render_mode="human")])
-eval_env = VecNormalize.load("vecstats/ppo_go2_vec_20250717-113529_checkpoint__vecnormalize_6000000_steps.pkl", dummy_env)
+eval_env = VecNormalize.load("vecstats/ppo_go2_vec_20250717-120900_checkpoint__vecnormalize_10000000_steps.pkl", dummy_env)
 
 # Disable updates to stats during evaluation
 eval_env.training = False
 eval_env.norm_reward = False
 
 # Load the trained model
-model = PPO.load("trained_models_vec/ppo_go2_vec_20250717-113529_checkpoint__6000000_steps")  # Update filename
+model = PPO.load("trained_models_vec/ppo_go2_vec_20250717-120900")  # Update filename
 
 # Create a writer for TensorBoard logs
 writer = SummaryWriter(log_dir="tensorboard/eval")
