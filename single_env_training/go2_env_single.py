@@ -34,6 +34,7 @@ class UnitreeGo2Env(gym.Env):
 
         # Initial Go2 velocities: 6 base DOFs + 12 joints = 18 total velocity DOFs --> all start at zero (static spawn)
         self.init_qvel = np.zeros_like(self.data.qvel)
+        self.prev_z = self.init_qpos[2] # Initialize vertical position tracker (z-height)
 
         # Observation and action spaces
         self._obs_template = self._construct_observation()
@@ -106,6 +107,10 @@ class UnitreeGo2Env(gym.Env):
         target_height = 0.27
 
         # Reward shaping
+        height_delta = abs(z_height - self.prev_z)
+        height_delta_penalty = 1.0 * height_delta
+        self.prev_z = z_height
+
         posture_penalty = 0.3 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
         height_penalty = 1.0 * (z_height - target_height) ** 2 # Encourage maintaining target height
         torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
@@ -129,6 +134,7 @@ class UnitreeGo2Env(gym.Env):
                 1.3 * forward_velocity -
                 acc_penalty -
                 height_penalty -
+                height_delta_penalty -
                 posture_penalty -
                 0.001 * torque_effort +
                 alive_bonus +
@@ -170,6 +176,9 @@ class UnitreeGo2Env(gym.Env):
 
         # Reset velocity tracker
         self.prev_vel = 0.0
+
+        # Reset vertical height tracker
+        self.prev_z = self.init_qpos[2]
 
         # Reset step counter
         self.step_counter = 0
