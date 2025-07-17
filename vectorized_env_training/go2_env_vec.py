@@ -100,23 +100,23 @@ class UnitreeGo2Env(gym.Env):
 
         # Rewards and penalties
         posture_penalty = 0.5 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
-        height_penalty = 1.0 * (z_height - self.target_height) ** 2 # Encourage maintaining target height
+        height_penalty = 0.5 * (z_height - self.target_height) ** 2 # Encourage maintaining target height
         torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
         alive_bonus = 1.0 # Small constant reward to encourage survival
-        duration_reward = 0.5 * self.step_counter if forward_vel > 0.1 else 0.0 # Small reward to keep moving
+        duration_reward = 0.8 * self.step_counter if forward_vel > 0.1 else 0.0 # Small reward to keep moving
 
         # Penalize sudden forward acceleration
         forward_acc = forward_vel - self.prev_vel
-        acc_penalty = 1.2 * (forward_acc ** 2)
+        acc_penalty = 0.8 * (forward_acc ** 2)
         self.prev_vel = forward_vel
 
         # Reward function
         reward = (
-            12.0 * forward_vel
+            14.0 * forward_vel
             - acc_penalty
             - height_penalty
             - posture_penalty
-            - 0.01 * torque_effort
+            - 0.001 * torque_effort
             + alive_bonus
             + duration_reward
         )
