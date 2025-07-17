@@ -6,14 +6,14 @@ from stable_baselines3.common.vec_env import VecNormalize,DummyVecEnv
 
 # Load environment and normalization wrapper
 dummy_env = DummyVecEnv([lambda: UnitreeGo2Env(render_mode="human")])
-eval_env = VecNormalize.load("vecstats/vecnormalize.pkl", dummy_env)
+eval_env = VecNormalize.load("vecstats/ppo_go2_vec_20250716-210058_checkpoint__vecnormalize_4000000_steps.pkl", dummy_env)
 
 # Disable updates to stats during evaluation
 eval_env.training = False
 eval_env.norm_reward = False
 
 # Load the trained model
-model = PPO.load("trained_models_vec/ppo_go2_vec_20250716-200521_checkpoint__2000000_steps")  # Update filename
+model = PPO.load("trained_models_vec/ppo_go2_vec_20250716-210058_checkpoint__4000000_steps")  # Update filename
 
 # Create a writer for TensorBoard logs
 writer = SummaryWriter(log_dir="tensorboard/eval")
@@ -23,7 +23,7 @@ n_eval_episodes = 100
 
 # Loop through evaluation episodes
 for ep in range(n_eval_episodes):
-    obs, _ = eval_env.reset() # Reset environment to start state
+    obs = eval_env.reset() # Reset environment to start state
     done = False
     ep_reward = 0
     steps = 0
@@ -34,17 +34,17 @@ for ep in range(n_eval_episodes):
         action, _ = model.predict(obs, deterministic=True)
 
         # Step through the environment using the action
-        obs, reward, terminated, truncated, _ = eval_env.step(action)
+        obs, reward, done, info = eval_env.step(action)
 
         # Render the robot from the environment
         eval_env.render()
         time.sleep(0.03)
 
         # Check for the episode's end
-        done = terminated or truncated
+        done = done[0]
 
         # Accumulate reward and count steps
-        ep_reward += reward
+        ep_reward += reward[0]
         steps += 1
 
     # Print and log reward to Tensorboard
