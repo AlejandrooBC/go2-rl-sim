@@ -36,7 +36,7 @@ env = UnitreeGo2Env()
 check_env(env, warn=True)
 
 # Load gallop model and attach environment
-model = PPO.load("trained_models_single/ppo_go2_20250709-172239", env=env)
+model = PPO.load("trained_models_single/ppo_go2_20250709-172239.zip", env=env)
 model.set_env(env)
 
 # Setup checkpoint saving
