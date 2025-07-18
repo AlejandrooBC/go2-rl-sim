@@ -123,6 +123,9 @@ class UnitreeGo2Env(gym.Env):
         acc_penalty = 4.0 * (forward_acc ** 2)
         self.prev_vel = forward_velocity
 
+        # Penalize forward velocity greater than 1
+        forward_vel_penalty = -1.0 if forward_velocity > 1.0 else 0.0
+
         # Forward velocity reward
         forward_velocity_reward = min(forward_velocity, 0.5)
 
@@ -137,6 +140,7 @@ class UnitreeGo2Env(gym.Env):
         # Reward function
         reward = (
                 forward_velocity_reward -
+                forward_vel_penalty -
                 acc_penalty -
                 height_penalty -
                 height_delta_penalty -
