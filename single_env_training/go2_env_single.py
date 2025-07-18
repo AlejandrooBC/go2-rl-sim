@@ -120,11 +120,11 @@ class UnitreeGo2Env(gym.Env):
 
         # Penalize sudden forward acceleration
         forward_acc = forward_velocity - self.prev_vel
-        acc_penalty = 2.0 * (forward_acc ** 2)
+        acc_penalty = 2.5 * (forward_acc ** 2)
         self.prev_vel = forward_velocity
 
         # Forward velocity reward
-        forward_velocity_reward = min(forward_velocity, 0.8)
+        forward_velocity_reward = min(forward_velocity, 0.5)
 
         # Compute delta_x for logging only
         delta_x = forward_position - self.prev_x
@@ -136,7 +136,7 @@ class UnitreeGo2Env(gym.Env):
 
         # Reward function
         reward = (
-                1.0 * forward_velocity_reward -
+                forward_velocity_reward -
                 acc_penalty -
                 height_penalty -
                 height_delta_penalty -
