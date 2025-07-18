@@ -42,7 +42,14 @@ check_env(env, warn=True)
 # Load fine-tuned model and attach the environment
 model = PPO.load("trained_models_single/ppo_go2_gallop_v4", env=env)
 model.set_env(env)
-model.learning_rate = 0.00001
+
+# Setting a new learning rate
+model.lr_schedule = lambda _: 1e-5
+model.policy.optimizer = model.policy.optimizer_class(
+    model.policy.parameters(),
+    lr=1e-5,
+    **model.policy.optimizer_kwargs,
+)
 
 # Set up checkpoint saving
 checkpoint_callback = CheckpointCallback(

@@ -108,7 +108,7 @@ class UnitreeGo2Env(gym.Env):
 
         # Reward shaping
         height_delta = abs(z_height - self.prev_z)
-        height_delta_penalty = 1.2 * height_delta
+        height_delta_penalty = 1.1 * height_delta
         self.prev_z = z_height
 
         posture_penalty = 0.3 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
