@@ -13,7 +13,6 @@ class TensorboardCallback(BaseCallback):
     # Called every time the model takes a step --> used to log custom metrics to Tensorboard
     def _on_step(self) -> bool:
         self.logger.record("custom/step_count", self.num_timesteps)
-        self.logger.record("custom/fine_tune_timesteps", self.locals["total_timesteps"])
 
         info = self.locals.get("infos", [{}])[0]
 
@@ -27,6 +26,10 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/delta_x", info["delta_x"])
         if "steps_alive" in info:
             self.logger.record("custom/steps_alive", info["steps_alive"])
+        if "height_delta" in info:
+            self.logger.record("custom/height_delta", info["height_delta"])
+        if "height_delta_penalty" in info:
+            self.logger.record("custom/height_delta_penalty", info["height_delta_penalty"])
         if "reward" in info:
             self.logger.record("custom/reward", info["reward"])
 
@@ -37,12 +40,13 @@ env = UnitreeGo2Env()
 check_env(env, warn=True)
 
 # Load fine-tuned model and attach the environment
-model = PPO.load("trained_models_single/ppo_go2_gallop_v3", env=env)
+model = PPO.load("trained_models_single/ppo_go2_gallop_v4", env=env)
 model.set_env(env)
+model.learning_rate = 0.00001
 
 # Set up checkpoint saving
 checkpoint_callback = CheckpointCallback(
-    save_freq=300_000,
+    save_freq=100_000,
     save_path="./trained_models_single/",
     name_prefix=f"{model_name}_checkpoint_",
     save_replay_buffer=False,
@@ -51,7 +55,7 @@ checkpoint_callback = CheckpointCallback(
 
 # Fine-tune the model
 model.learn(
-    total_timesteps=3_000_000, # Fine-tuning timesteps
+    total_timesteps=500_000, # Fine-tuning timesteps
     tb_log_name=f"run_finetune_{timestamp}",
     callback=[TensorboardCallback(), checkpoint_callback],
     reset_num_timesteps=False # IMPORTANT: Continue from the most recent/best fined-tuned model training
