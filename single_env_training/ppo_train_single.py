@@ -30,6 +30,10 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/height_delta", info["height_delta"])
         if "height_delta_penalty" in info:
             self.logger.record("custom/height_delta_penalty", info["height_delta_penalty"])
+        if "lateral_position" in info:
+            self.logger.record("custom/lateral_position", info["lateral_position"])
+        if "lateral_penalty" in info:
+            self.logger.record("custom/lateral_penalty", info["lateral_penalty"])
         if "reward" in info:
             self.logger.record("custom/reward", info["reward"])
 
@@ -40,7 +44,7 @@ env = UnitreeGo2Env()
 check_env(env, warn=True)
 
 # Load fine-tuned model and attach the environment
-model = PPO.load("trained_models_single/ppo_go2_gallop_v4", env=env)
+model = PPO.load("trained_models_single/ppo_go2_gallop_v5", env=env)
 model.set_env(env)
 
 # Setting a new learning rate
