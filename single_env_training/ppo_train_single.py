@@ -13,7 +13,6 @@ class TensorboardCallback(BaseCallback):
     # Called every time the model takes a step --> used to log custom metrics to Tensorboard
     def _on_step(self) -> bool:
         self.logger.record("custom/step_count", self.num_timesteps)
-
         info = self.locals.get("infos", [{}])[0]
 
         if "x_position" in info:
@@ -26,52 +25,54 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/delta_x", info["delta_x"])
         if "steps_alive" in info:
             self.logger.record("custom/steps_alive", info["steps_alive"])
-        if "height_delta" in info:
-            self.logger.record("custom/height_delta", info["height_delta"])
-        if "height_delta_penalty" in info:
-            self.logger.record("custom/height_delta_penalty", info["height_delta_penalty"])
-        if "lateral_position" in info:
-            self.logger.record("custom/lateral_position", info["lateral_position"])
-        if "lateral_penalty" in info:
-            self.logger.record("custom/lateral_penalty", info["lateral_penalty"])
         if "reward" in info:
             self.logger.record("custom/reward", info["reward"])
-
+        if "lateral_position" in info:
+            self.logger.record("custom/lateral_position", info["lateral_position"])
+        if "r_linear_velocity" in info:
+            self.logger.record("custom/r_linear_velocity", info["r_linear_velocity"])
+        if "r_angular_velocity" in info:
+            self.logger.record("custom/r_angular_velocity", info["r_angular_velocity"])
+        if "r_height_penalty" in info:
+            self.logger.record("custom/r_height_penalty", info["r_height_penalty"])
+        if "r_pose_similarity" in info:
+            self.logger.record("custom/r_pose_similarity", info["r_pose_similarity"])
+        if "r_action_rate_penalty" in info:
+            self.logger.record("custom/r_action_rate_penalty", info["r_action_rate_penalty"])
+        if "r_vertical_velocity_penalty" in info:
+            self.logger.record("custom/r_vertical_velocity_penalty", info["r_vertical_velocity_penalty"])
+        if "r_orientation_penalty" in info:
+            self.logger.record("custom/r_orientation_penalty", info["r_orientation_penalty"])
         return True
 
 # Initialize the sim environment and check its compatability
+check_env(UnitreeGo2Env(), warn=True)
 env = UnitreeGo2Env()
-check_env(env, warn=True)
 
-# Load fine-tuned model and attach the environment
-model = PPO.load("trained_models_single/ppo_go2_gallop_v5", env=env)
-model.set_env(env)
+# Create the PPO model
+model = PPO("MlpPolicy", env, verbose=1, tensorboard_log="./ppo_go2_tensorboard/",
+            learning_rate=0.0003,
+            n_steps=8192,
+            batch_size=1024,
+            n_epochs=5,
+            device="cuda")
 
-# Setting a new learning rate
-model.lr_schedule = lambda _: 1e-5
-model.policy.optimizer = model.policy.optimizer_class(
-    model.policy.parameters(),
-    lr=1e-5,
-    **model.policy.optimizer_kwargs,
-)
-
-# Set up checkpoint saving
+# Checkpoint saving every user-defined number of steps
 checkpoint_callback = CheckpointCallback(
-    save_freq=100_000,
+    save_freq=300_000,
     save_path="./trained_models_single/",
     name_prefix=f"{model_name}_checkpoint_",
     save_replay_buffer=False,
     save_vecnormalize=False
 )
 
-# Fine-tune the model
+# Train the PPO model
 model.learn(
-    total_timesteps=500_000, # Fine-tuning timesteps
-    tb_log_name=f"run_finetune_{timestamp}",
-    callback=[TensorboardCallback(), checkpoint_callback],
-    reset_num_timesteps=False # IMPORTANT: Continue from the most recent/best fined-tuned model training
+    total_timesteps=2_000_000, # Number of training timesteps
+    tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
+    callback=[TensorboardCallback(), checkpoint_callback] # Log step count to Tensorboard, log checkpoints
 )
 
-# Save the final fine-tuned model
+# Save the model with a unique timestamped filename
 model.save(f"trained_models_single/{model_name}")
-print(f"Fine-tuning complete. Model saved as '{model_name}.zip'")
+print(f"Training complete. Model saved as '{model_name}.zip'")

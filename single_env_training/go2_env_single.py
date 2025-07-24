@@ -4,41 +4,54 @@ import mujoco
 from mujoco import MjModel, MjData, viewer
 from gymnasium import spaces
 from scipy.spatial.transform import Rotation as R
+from training_cfgs import get_cfgs
+from rewards import (
+    linear_velocity_tracking,
+    angular_velocity_tracking,
+    height_penalty,
+    pose_similarity,
+    action_rate_penalty,
+    vertical_velocity_penalty,
+    orientation_penalty
+)
 
 # Custom Gymnasium environment for simulating the Unitree Go2 robot using MuJoCo (inherits from Env class)
 class UnitreeGo2Env(gym.Env):
-    def __init__(self, model_path="../mujoco_menagerie/unitree_go2/scene.xml", render_mode="human"):
+    def __init__(self, model_path="../mujoco_menagerie/unitree_go2/scene.xml",
+                 render_mode="human", env_cfg=None, reward_cfg=None):
         # Load the MuJoCo model and allocate simulation data
         self.model = MjModel.from_xml_path(model_path) # Blueprint of the Go2 model
         self.data = MjData(self.model) # Live state of the Go2 and world - snapshot
+
+        # Load the environment and reward cfgs
+        if env_cfg is None or reward_cfg is None:
+            self.env_cfg, self.reward_cfg = get_cfgs()
+        else:
+            self.env_cfg = env_cfg
+            self.reward_cfg = reward_cfg
+
+        # Initializing trackers, targets, and step counter
         self.prev_x = 0.0 # Track displacement between steps
-        self.prev_vel = 0.0 # Track forward velocity for acceleration penalty
         self.step_counter = 0 # Track the number of steps per episode
+        self.target_height = self.env_cfg["target_height"]
 
         # Number of MuJoCo physics steps to take per environment step --> for each call to step()
-        self.sim_steps = 6
+        self.sim_steps = self.env_cfg["sim_steps"]
         self.render_mode = render_mode
         self.viewer = None
 
         # Initial Go2 configuration: base pose and joint angles
-        self.init_qpos = np.array([
-            0, 0, 0.27,  # Base position (x = 0, y = 0, z = 0.27 m) --> slightly above the floor
-            1, 0, 0, 0,  # Base orientation quaternion (w, x, y, z) --> robot is upright with no rotation
-
-            # Joint angles for each leg: abduction (side swing), hip (forward/back), knee (extension/flexion)
-            0, 0.9, -1.8,  # Front-left
-            0, 0.9, -1.8,  # Front-right
-            0, 0.9, -1.8,  # Rear-left
-            0, 0.9, -1.8  # Rear-right
-        ])
+        self.init_qpos = self.env_cfg["initial_pose"]
 
         # Initial Go2 velocities: 6 base DOFs + 12 joints = 18 total velocity DOFs --> all start at zero (static spawn)
         self.init_qvel = np.zeros_like(self.data.qvel)
-        self.prev_z = self.init_qpos[2] # Initialize vertical position tracker (z-height)
+
+        # Initial Go2 previous action
+        self.prev_action = np.zeros(self.model.nu)
 
         # Observation and action spaces
         self._obs_template = self._construct_observation()
-        obs_dim = len(self._obs_template) # Get dimension of observation vector for Gym's observation space
+        obs_dim = len(self._obs_template)
 
         # Define the observation space: what the robot/agent sees
         self.observation_space = spaces.Box(
@@ -71,9 +84,30 @@ class UnitreeGo2Env(gym.Env):
         joint_pos = self.data.qpos[7:]
         joint_vel = self.data.qvel[6:]
 
+        # Previous action
+        prev_action = self.prev_action
+
         # Final observation vector: orientation, base motion, joint states
-        obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel])
+        obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel, prev_action])
         return obs.astype(np.float32)
+
+    # Function to check for episode termination conditions
+    def is_healthy(self):
+        # Use existing orientation calculation
+        quat = self.data.qpos[3:7]
+        roll, pitch, yaw = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_euler("xyz", degrees=False)
+        current_height = self.data.qpos[2]
+
+        roll_threshold = 0.5 # Adjust the threshold (rad)
+        pitch_threshold = 0.5 # Adjust the threshold (rad)
+        min_height = self.env_cfg["termination_height_range"][0]
+        max_height = self.env_cfg["termination_height_range"][1]
+
+        if (abs(roll) > roll_threshold or abs(pitch) > pitch_threshold or
+                current_height < min_height or current_height > max_height):
+            return False # Go2 episode terminates
+        else:
+            return True # Go2 episode continues (remains alive)
 
     # The core loop of the environment - each time our PPO agent sends an action, this happens:
     def step(self, action):
@@ -98,66 +132,42 @@ class UnitreeGo2Env(gym.Env):
 
         # Construct the updated observation and extract roll, pitch, and yaw
         obs = self._construct_observation()
-        rpy = obs[:3]
 
         # Define forward velocity, position, and heights
         forward_velocity = self.data.qvel[0]
         forward_position = self.data.qpos[0]
         z_height = self.data.qpos[2]
         lateral_position = self.data.qpos[1]
-        target_height = 0.27
 
-        # Reward shaping
-        height_delta = abs(z_height - self.prev_z)
-        height_delta_penalty = 1.2 * height_delta
-        self.prev_z = z_height
-
-        posture_penalty = 0.3 * (rpy[0] ** 2 + rpy[1] ** 2) # Penalize tilt/encourage staying upright (roll, pitch)
-        height_penalty = 1.2 * (z_height - target_height) ** 2 # Encourage maintaining target height
-        lateral_penalty = 0.01 * abs(lateral_position) # Penalize deviation from y = 0
-        torque_effort = np.sum(np.square(self.data.ctrl)) # Penalize excessive actuator effort
-        alive_bonus = 0.1 # Small constant reward to encourage survival
-
-        # Penalize sudden forward acceleration
-        forward_acc = forward_velocity - self.prev_vel
-        acc_penalty = 4.0 * (forward_acc ** 2)
-        self.prev_vel = forward_velocity
-
-        # Penalize forward velocity greater than 1
-        forward_vel_penalty = 1.0 if forward_velocity > 1.0 else 0.0
-
-        # Forward velocity reward
-        forward_velocity_reward = min(forward_velocity, 0.5)
+        # Reward function
+        reward = (
+                linear_velocity_tracking(self, self.reward_cfg) +
+                angular_velocity_tracking(self, self.reward_cfg) +
+                height_penalty(self, self.reward_cfg) +
+                pose_similarity(self, self.reward_cfg) +
+                action_rate_penalty(self, scaled_action, self.reward_cfg) +
+                vertical_velocity_penalty(self, self.reward_cfg) +
+                orientation_penalty(self, self.reward_cfg) +
+                (self.reward_cfg["alive_bonus"] if forward_velocity > 0.1 else 0.0) +
+                (self.reward_cfg["duration_bonus"] * self.step_counter)
+        )
 
         # Compute delta_x for logging only
         delta_x = forward_position - self.prev_x
         self.prev_x = forward_position
 
-        # Reward longer-lasting steps (more time alive)
+        # Increment step counter
         self.step_counter += 1
-        duration_reward = 0.00025 * self.step_counter if forward_velocity > 0.1 else 0.0
 
-        # Reward function
-        reward = (
-                forward_velocity_reward -
-                forward_vel_penalty -
-                acc_penalty -
-                height_penalty -
-                height_delta_penalty -
-                posture_penalty -
-                lateral_penalty -
-                0.001 * torque_effort +
-                alive_bonus +
-                duration_reward
-        )
-
-        # Episode ends if robot falls
-        terminated = bool(z_height < 0.15 or z_height > 0.40)
+        # Episode ends if termination conditions are met
+        healthy = self.is_healthy()
         truncated = bool(False)
-
-        # Apply fall penalty if the Go2 falls
-        if terminated:
+        if not healthy:
             reward -= 1
+        terminated = bool(not healthy)
+
+        # Store previous action for next observation
+        self.prev_action = scaled_action.copy()
 
         # Info for Tensorboard logging
         info = {
@@ -166,11 +176,15 @@ class UnitreeGo2Env(gym.Env):
             "x_velocity": forward_velocity,
             "delta_x": delta_x,
             "steps_alive": self.step_counter,
-            "height_delta": height_delta,
-            "height_delta_penalty": height_delta_penalty,
+            "reward": reward,
             "lateral_position": lateral_position,
-            "lateral_penalty": lateral_penalty,
-            "reward": reward
+            "r_linear_velocity": linear_velocity_tracking(self, self.reward_cfg),
+            "r_angular_velocity": angular_velocity_tracking(self, self.reward_cfg),
+            "r_height_penalty": height_penalty(self, self.reward_cfg),
+            "r_pose_similarity": pose_similarity(self, self.reward_cfg),
+            "r_action_rate_penalty": action_rate_penalty(self, scaled_action, self.reward_cfg),
+            "r_vertical_velocity_penalty": vertical_velocity_penalty(self, self.reward_cfg),
+            "r_orientation_penalty": orientation_penalty(self, self.reward_cfg)
         }
 
         return obs, reward, terminated, truncated, info
@@ -188,14 +202,11 @@ class UnitreeGo2Env(gym.Env):
         # Reset delta_x tracker
         self.prev_x = 0.0
 
-        # Reset velocity tracker
-        self.prev_vel = 0.0
-
-        # Reset vertical height tracker
-        self.prev_z = self.init_qpos[2]
-
         # Reset step counter
         self.step_counter = 0
+
+        # Reset previous action
+        self.prev_action = np.zeros(self.model.nu)
 
         # Tell MuJoCo to re-calculate everything (kinematics, contacts, etc.) after you manually change the state
         mujoco.mj_forward(self.model, self.data)
