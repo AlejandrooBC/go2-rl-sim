@@ -99,8 +99,8 @@ class UnitreeGo2Env(gym.Env):
         roll, pitch, yaw = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_euler("xyz", degrees=False)
         current_height = self.data.qpos[2]
 
-        roll_threshold = 0.5 # Adjust the threshold (rad)
-        pitch_threshold = 0.5 # Adjust the threshold (rad)
+        roll_threshold = 0.35 # Adjust the threshold (rad) - previously 0.5
+        pitch_threshold = 0.35 # Adjust the threshold (rad) - previously 0.5
         min_height = self.env_cfg["termination_height_range"][0]
         max_height = self.env_cfg["termination_height_range"][1]
 
@@ -150,8 +150,7 @@ class UnitreeGo2Env(gym.Env):
                 vertical_velocity_penalty(self, self.reward_cfg) +
                 orientation_penalty(self, self.reward_cfg) +
                 torque_penalty(self, self.reward_cfg) +
-                (self.reward_cfg["alive_bonus"] if forward_velocity > 0.2 else 0.0) +
-                (self.reward_cfg["duration_bonus"] * self.step_counter if forward_velocity > 0.2 else 0.0)
+                (self.reward_cfg["alive_bonus"] if forward_velocity > 0.2 else 0.0)
         )
 
         # Compute delta_x for logging only
@@ -163,10 +162,10 @@ class UnitreeGo2Env(gym.Env):
 
         # Episode ends if termination conditions are met
         healthy = self.is_healthy()
-        truncated = bool(False)
-        if not healthy:
-            reward -= 1
         terminated = bool(not healthy)
+        truncated = bool(False)
+        if terminated:
+            reward -= 1
 
         # Store previous action for next observation
         self.prev_action = scaled_action.copy()
@@ -186,7 +185,8 @@ class UnitreeGo2Env(gym.Env):
             "r_pose_similarity": pose_similarity(self, self.reward_cfg),
             "r_action_rate_penalty": action_rate_penalty(self, scaled_action, self.reward_cfg),
             "r_vertical_velocity_penalty": vertical_velocity_penalty(self, self.reward_cfg),
-            "r_orientation_penalty": orientation_penalty(self, self.reward_cfg)
+            "r_orientation_penalty": orientation_penalty(self, self.reward_cfg),
+            "r_torque_penalty": torque_penalty(self, self.reward_cfg)
         }
 
         return obs, reward, terminated, truncated, info

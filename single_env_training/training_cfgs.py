@@ -4,7 +4,7 @@ import numpy as np
 def get_cfgs():
     env_cfg = {
         "sim_steps": 6,
-        "termination_height_range": [0.15, 0.40],
+        "termination_height_range": [0.20, 0.40], # Previous min height was 0.15
         "target_height": 0.27,
 
         "initial_pose": np.array([
@@ -38,7 +38,7 @@ def get_cfgs():
         "torque_weight": 0.0005,
         "tracking_sigma": 0.25,
         "alive_bonus": 0.1,
-        "duration_bonus": 0.00025,
+        "duration_bonus": 0.00025 # Not used right now
     }
 
     return env_cfg, reward_cfg

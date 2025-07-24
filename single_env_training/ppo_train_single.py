@@ -43,6 +43,8 @@ class TensorboardCallback(BaseCallback):
             self.logger.record("custom/r_vertical_velocity_penalty", info["r_vertical_velocity_penalty"])
         if "r_orientation_penalty" in info:
             self.logger.record("custom/r_orientation_penalty", info["r_orientation_penalty"])
+        if "r_torque_penalty" in info:
+            self.logger.record("custom/r_torque_penalty", info["r_torque_penalty"])
         return True
 
 # Initialize the sim environment and check its compatability
