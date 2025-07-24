@@ -29,12 +29,12 @@ def get_cfgs():
 
     reward_cfg = {
         "linear_vel_weight": 1.0,
-        "ang_vel_weight": 0.5,
-        "height_weight": 0.8,
-        "pose_weight": 0.8,
-        "action_rate_weight": 0.5,
-        "vertical_vel_weight": 0.8,
-        "orientation_weight": 0.8,
+        "ang_vel_weight": 0.3,
+        "height_weight": 0.6,
+        "pose_weight": 0.5,
+        "action_rate_weight": 0.3,
+        "vertical_vel_weight": 0.3,
+        "orientation_weight": 0.5,
         "torque_weight": 0.001,
         "tracking_sigma": 0.25,
         "alive_bonus": 0.1,
