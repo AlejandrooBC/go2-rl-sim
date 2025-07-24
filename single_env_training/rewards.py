@@ -18,7 +18,7 @@ def angular_velocity_tracking(env, reward_cfg):
 # Reward for maintaining base z-height near target height
 def height_penalty(env, reward_cfg):
     actual_z = env.data.qpos[2] # Base height
-    error = (reward_cfg["target_height"] - actual_z) ** 2 # Measures the difference between the actual height and the target
+    error = (env.target_height - actual_z) ** 2 # Measures the difference between the actual height and the target
     reward = np.exp(-error / reward_cfg["tracking_sigma"]) * reward_cfg["height_weight"]
     return reward
 
