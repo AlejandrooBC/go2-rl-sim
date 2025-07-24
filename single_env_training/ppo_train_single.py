@@ -59,7 +59,7 @@ model = PPO("MlpPolicy", env, verbose=1, tensorboard_log="./ppo_go2_tensorboard/
 
 # Checkpoint saving every user-defined number of steps
 checkpoint_callback = CheckpointCallback(
-    save_freq=300_000,
+    save_freq=1_000_000,
     save_path="./trained_models_single/",
     name_prefix=f"{model_name}_checkpoint_",
     save_replay_buffer=False,
@@ -68,7 +68,7 @@ checkpoint_callback = CheckpointCallback(
 
 # Train the PPO model
 model.learn(
-    total_timesteps=2_000_000, # Number of training timesteps
+    total_timesteps=20_000_000, # Number of training timesteps
     tb_log_name=f"run_{timestamp}", # Folder name of this run's logs
     callback=[TensorboardCallback(), checkpoint_callback] # Log step count to Tensorboard, log checkpoints
 )

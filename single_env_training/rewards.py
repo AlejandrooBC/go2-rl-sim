@@ -59,3 +59,9 @@ def orientation_penalty(env, reward_cfg):
 
     penalty = roll**2 + pitch**2
     return -penalty * reward_cfg["orientation_weight"]
+
+# Penalize excessive actuator effort
+def torque_penalty(env, reward_cfg):
+    torque = np.abs(env.data.ctrl[:])
+    penalty = np.sum(torque**2)
+    return -penalty * reward_cfg["torque_weight"]

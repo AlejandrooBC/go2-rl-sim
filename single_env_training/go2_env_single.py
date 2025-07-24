@@ -12,7 +12,8 @@ from rewards import (
     pose_similarity,
     action_rate_penalty,
     vertical_velocity_penalty,
-    orientation_penalty
+    orientation_penalty,
+    torque_penalty
 )
 
 # Custom Gymnasium environment for simulating the Unitree Go2 robot using MuJoCo (inherits from Env class)
@@ -148,6 +149,7 @@ class UnitreeGo2Env(gym.Env):
                 action_rate_penalty(self, scaled_action, self.reward_cfg) +
                 vertical_velocity_penalty(self, self.reward_cfg) +
                 orientation_penalty(self, self.reward_cfg) +
+                torque_penalty(self, self.reward_cfg) +
                 (self.reward_cfg["alive_bonus"] if forward_velocity > 0.1 else 0.0) +
                 (self.reward_cfg["duration_bonus"] * self.step_counter)
         )
