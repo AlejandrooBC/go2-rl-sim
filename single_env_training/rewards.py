@@ -24,7 +24,7 @@ def height_penalty(env, reward_cfg):
 
 # Reward for maintaining joints similar to the default initialization pose
 def pose_similarity(env, reward_cfg):
-    error = np.linalg.norm(env.data.qpos[7:] - reward_cfg["default_joint_pose"]) # Skip base pose
+    error = np.linalg.norm(env.data.qpos[7:] - env.env_cfg["default_joint_pose"]) # Skip base pose
     reward = np.exp(-error / reward_cfg["tracking_sigma"]) * reward_cfg["pose_weight"]
     return reward
 
