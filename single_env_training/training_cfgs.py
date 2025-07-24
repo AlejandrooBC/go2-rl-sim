@@ -28,10 +28,10 @@ def get_cfgs():
     }
 
     reward_cfg = {
-        "linear_vel_weight": 1.0,
+        "linear_vel_weight": 1.2, # previously 1.0
         "ang_vel_weight": 0.3,
         "height_weight": 0.5,
-        "pose_weight": 0.4,
+        "pose_weight": 0.25, # previously 0.4
         "action_rate_weight": 0.3,
         "vertical_vel_weight": 0.25,
         "orientation_weight": 0.3,

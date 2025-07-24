@@ -150,8 +150,8 @@ class UnitreeGo2Env(gym.Env):
                 vertical_velocity_penalty(self, self.reward_cfg) +
                 orientation_penalty(self, self.reward_cfg) +
                 torque_penalty(self, self.reward_cfg) +
-                (self.reward_cfg["alive_bonus"] if forward_velocity > 0.1 else 0.0) +
-                (self.reward_cfg["duration_bonus"] * self.step_counter)
+                (self.reward_cfg["alive_bonus"] if forward_velocity > 0.2 else 0.0) +
+                (self.reward_cfg["duration_bonus"] * self.step_counter if forward_velocity > 0.2 else 0.0)
         )
 
         # Compute delta_x for logging only
