@@ -25,6 +25,9 @@ class Sim2RealNode(Node):
         # Observation vector (will be filled on each LowState message)
         self.obs = None
 
+        # Previous action tracker (for observation)
+        self.prev_action = np.zeros(12, dtype=np.float32)
+
         # Initial pose initialization conditions
         self.initializing = True
         self.init_start_time = time.time()
@@ -65,8 +68,8 @@ class Sim2RealNode(Node):
             msg.imu_state.quaternion[0], # w
             msg.imu_state.quaternion[1], # x
             msg.imu_state.quaternion[2], # y
-            msg.imu_state.quaternion[3] # z
-        ]
+            msg.imu_state.quaternion[3]] # z
+
         # Convert quaternion to Euler angles (roll, pitch, yaw)
         rpy = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_euler("xyz", degrees=False)
 
@@ -80,11 +83,8 @@ class Sim2RealNode(Node):
         joint_pos = [m.q for m in msg.motor_state[:12]]
         joint_vel = [m.dq for m in msg.motor_state[:12]]
 
-        # Previous action (zeros for now)
-        prev_action = np.zeros(12, dtype=np.float32)
-
         # Combine everything into one observation vector
-        self.obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel, prev_action]).astype(np.float32)
+        self.obs = np.concatenate([rpy, lin_vel, ang_vel, joint_pos, joint_vel, self.prev_action]).astype(np.float32)
 
     # Function to run the trained policy and continuously send the resulting joint position commands to the Go2
     def control_callback(self):
@@ -96,37 +96,50 @@ class Sim2RealNode(Node):
         cmd_msg = LowCmd()
         cmd_msg.level_flag = 0xFF # Enable low-level motor control
 
-        # Send commands to set the robot to the initial standing pose (1 sec in pose)
-        if self.initializing and time.time() - self.init_start_time < 1.0:
-            # Send fixed standing pose
-            for i in range(12):
-                cmd_msg.motor_cmd[i].mode = 0x01
-                cmd_msg.motor_cmd[i].q = self.stand_pose[i]
-                cmd_msg.motor_cmd[i].dq = 0.0
-                cmd_msg.motor_cmd[i].tau = 0.0
-                cmd_msg.motor_cmd[i].kp = 20.0
-                cmd_msg.motor_cmd[i].kd = 0.5
-        # Robot executes the learned policy (after the initial pose)
-        else:
-            self.initializing = False
-
-            # Use the loaded PPO policy to predict an action (12 joint target positions for the Go2)
+        # Initialization or blending stage
+        t_since_init = time.time() - self.init_start_time
+        if t_since_init < 1.0:
+            # Send pure stand pose
+            target_q = self.stand_pose
+        elif t_since_init < 1.5:
+            # Blend stand pose and policy output
             action, _ = self.model.predict(self.obs, deterministic=True)
-
-            # Action scaling based on actuator joint limits from MuJoCo training
+            scaled_action = self.mid + action * self.amp
+            alpha = (t_since_init - 1.0) / 0.5
+            target_q = (1 - alpha) * self.stand_pose + alpha * scaled_action
+        else:
+            # Normal policy execution
+            self.initializing = False
+            action, _ = self.model.predict(self.obs, deterministic=True)
             scaled_action = self.mid + action * self.amp
 
-            # For each of the 12 actuated joints
-            for i in range(12):
-                cmd_msg.motor_cmd[i].mode = 0x01 # Position control mode
-                cmd_msg.motor_cmd[i].q = scaled_action[i] # Desired joint angle from the policy
-                cmd_msg.motor_cmd[i].dq = 0.0 # No velocity control
-                cmd_msg.motor_cmd[i].tau = 0.0 # No torque control
-                cmd_msg.motor_cmd[i].kp = 20.0 # Proportional gain - how strongly motor tries to move target angle
-                cmd_msg.motor_cmd[i].kd = 0.5 # Derivative gain - how strongly it resists velocity changes (damping)
+            # Debug print
+            if not hasattr(self, "debug_count"):
+                self.debug_count = 0
+            if self.debug_count < 10:
+                self.get_logger().info(
+                    f"Obs shape: {self.obs.shape}, "
+                    f"Action (first 4): {action[:4]}, "
+                    f"Scaled action (first 4): {scaled_action[:4]}"
+                )
+                self.debug_count += 1
+
+            target_q = scaled_action
+
+        # For each of the 12 actuated joints
+        for i in range(12):
+            cmd_msg.motor_cmd[i].mode = 0x01 # Position control mode
+            cmd_msg.motor_cmd[i].q = target_q[i] # Desired joint angle from the policy
+            cmd_msg.motor_cmd[i].dq = 0.0 # No velocity control
+            cmd_msg.motor_cmd[i].tau = 0.0 # No torque control
+            cmd_msg.motor_cmd[i].kp = 20.0 # Proportional gain - how strongly motor tries to move target angle
+            cmd_msg.motor_cmd[i].kd = 0.5 # Derivative gain - how strongly it resists velocity changes (damping)
 
         # Publish the built command to /lowcmd
         self.cmd_pub.publish(cmd_msg)
+
+        # Update previous action for next observation
+        self.prev_action = (target_q[:12] - self.mid) / self.amp
 
 # Set up and execution
 def main(args=None):
