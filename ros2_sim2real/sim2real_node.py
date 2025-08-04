@@ -5,6 +5,7 @@ from unitree_go.msg import LowState, LowCmd
 from scipy.spatial.transform import Rotation as R
 from stable_baselines3 import PPO
 import os
+import time
 
 # Node for sim-to-real deployment of a PPO-trained forward walking policy
 class Sim2RealNode(Node):
@@ -23,6 +24,16 @@ class Sim2RealNode(Node):
 
         # Observation vector (will be filled on each LowState message)
         self.obs = None
+
+        # Initial pose initialization conditions
+        self.initializing = True
+        self.init_start_time = time.time()
+
+        # Initial stand pose (match sim)
+        self.stand_pose = np.array([0.0, 0.9, -1.8,
+                                    0.0, 0.9, -1.8,
+                                    0.0, 0.9, -1.8,
+                                    0.0, 0.9, -1.8])
 
         # Actuator control ranges used during training (MuJoCo sim)
         self.joint_mins = np.array([-23.7, -23.7, -45.43,
@@ -81,24 +92,38 @@ class Sim2RealNode(Node):
         if self.obs is None:
             return
 
-        # Use the loaded PPO policy to predict an action (12 joint target positions for the Go2)
-        action, _ = self.model.predict(self.obs, deterministic=True)
-
-        # Action scaling based on actuator joint limits from MuJoCo training
-        scaled_action = self.mid + action * self.amp
-
         # Build /lowcmd message
         cmd_msg = LowCmd()
         cmd_msg.level_flag = 0xFF # Enable low-level motor control
 
-        # For each of the 12 actuated joints
-        for i in range(12):
-            cmd_msg.motor_cmd[i].mode = 0x01 # Position control mode
-            cmd_msg.motor_cmd[i].q = scaled_action[i] # Desired joint angle from the policy
-            cmd_msg.motor_cmd[i].dq = 0.0 # No velocity control
-            cmd_msg.motor_cmd[i].tau = 0.0 # No torque control
-            cmd_msg.motor_cmd[i].kp = 20.0 # Proportional gain - how strongly motor tries to move target angle
-            cmd_msg.motor_cmd[i].kd = 0.5 # Derivative gain - how strongly it resists velocity changes (damping)
+        # Send commands to set the robot to the initial standing pose (1 sec in pose)
+        if self.initializing and time.time() - self.init_start_time < 1.0:
+            # Send fixed standing pose
+            for i in range(12):
+                cmd_msg.motor_cmd[i].mode = 0x01
+                cmd_msg.motor_cmd[i].q = self.stand_pose[i]
+                cmd_msg.motor_cmd[i].dq = 0.0
+                cmd_msg.motor_cmd[i].tau = 0.0
+                cmd_msg.motor_cmd[i].kp = 20.0
+                cmd_msg.motor_cmd[i].kd = 0.5
+        # Robot executes the learned policy (after the initial pose)
+        else:
+            self.initializing = False
+
+            # Use the loaded PPO policy to predict an action (12 joint target positions for the Go2)
+            action, _ = self.model.predict(self.obs, deterministic=True)
+
+            # Action scaling based on actuator joint limits from MuJoCo training
+            scaled_action = self.mid + action * self.amp
+
+            # For each of the 12 actuated joints
+            for i in range(12):
+                cmd_msg.motor_cmd[i].mode = 0x01 # Position control mode
+                cmd_msg.motor_cmd[i].q = scaled_action[i] # Desired joint angle from the policy
+                cmd_msg.motor_cmd[i].dq = 0.0 # No velocity control
+                cmd_msg.motor_cmd[i].tau = 0.0 # No torque control
+                cmd_msg.motor_cmd[i].kp = 20.0 # Proportional gain - how strongly motor tries to move target angle
+                cmd_msg.motor_cmd[i].kd = 0.5 # Derivative gain - how strongly it resists velocity changes (damping)
 
         # Publish the built command to /lowcmd
         self.cmd_pub.publish(cmd_msg)
