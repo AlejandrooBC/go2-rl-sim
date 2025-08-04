@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go2_policy_deploy</name>
+  <version>0.0.1</version>
+  <description>Go2 walking policy deployment node</description>
+  <maintainer email="aleebcschool@gmail.com">Alejandro Begara Criado</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>unitree_go</depend>
+  <depend>numpy</depend>
+  <depend>scipy</depend>
+  <depend>stable_baselines3</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
