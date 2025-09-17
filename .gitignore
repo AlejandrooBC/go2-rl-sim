@@ -22,6 +22,7 @@ MUJOCO_LOG.TXT
 single_env_training/trained_models_single/
 single_env_training/alt_training/trained_alt_models/
 vectorized_env_training/trained_models_vec/
+domain_randomization_env_training/trained_models_domain_rand/
 **/vecstats/
 
 # TensorBoard logs
@@ -32,6 +33,8 @@ single_env_training/alt_training/tensorboard/
 single_env_training/alt_training/tensorboard/eval
 vectorized_env_training/tensorboard/
 vectorized_env_training/tensorboard/eval
+domain_randomization_env_training/tensorboard/
+domain_randomization_env_training/tensorboard/eval
 
 # Other
 .DS_Store
