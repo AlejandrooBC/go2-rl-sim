@@ -20,7 +20,7 @@ contains ROS2 scripts for low-level control and hardware deployment tests on the
 **Baseline Non-Domain-Randomized Forward Walking Gait Policy**
 ![Baseline Non-Domain-Randomized Forward Walking Gait](media/Non_DR_Gait.gif)
 
-** Domain-Randomized Forward Walking Gait Policy**
+**Domain-Randomized Forward Walking Gait Policy**
 ![Domain-Randomized Forward Walking Gait](media/DR_Gait.gif)
 
 ## Repository Structure
@@ -38,28 +38,37 @@ Clone the repo and install dependencies:
 git clone https://github.com/AlejandrooBC/Sim2RealDev.git
 cd Sim2RealDev
 pip install -r requirements.txt
+```
 
 ## Training
 Baseline Non-Domain-Randomized Policy
+```bash
 cd single_env_training
 python ppo_train_single.py
+```
 
 Domain-Randomized Policy
+```bash
 cd domain_randomization_env_training
 python ppo_train_dom_rand.py
+```
 
 ## Evaluation
 Baseline Non-Domain-Randomized Policy
+```bash
 cd single_env_training
 python evaluate_policy_single.py
+```
 
 Domain-Randomized Policy
+```bash
 cd domain_randomization_env_training
 python evaluate_policy_dom_rand.py
+```
 
 ## Results
-Non-domain-randomized policy: More stable, fewer lateral drifts.
-Domain-randomized policy: Walked successfully, but sometimes displayed jittery movements, micro-hops, and lateral
+**Non-domain-randomized policy**: More stable, fewer lateral drifts.
+**Domain-randomized policy**: Walked successfully, but sometimes displayed jittery movements, micro-hops, and lateral
 drift.
 
 ## Paper and Additional Resources
