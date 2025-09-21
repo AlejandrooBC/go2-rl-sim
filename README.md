@@ -68,6 +68,7 @@ python evaluate_policy_dom_rand.py
 
 ## Results
 **Non-domain-randomized policy**: More stable, fewer lateral drifts.
+
 **Domain-randomized policy**: Walked successfully, but sometimes displayed jittery movements, micro-hops, and lateral
 drift.
 
@@ -75,7 +76,8 @@ drift.
 [Paper](https://drive.google.com/file/d/1DVjWZARdVNa7wjRNmxYzRFqj8-DmOTCE/view?usp=drive_link)
 
 ## Acknowledgements
-Thank you to our mentors Dr. Christian Ellis, Dr. Adam Thorpe, Dr. Neel Bhatt, and Dr. Ufuk Topcu.
-Thank you to Greta Brown, who worked with me this summer.
+Thank you to our mentors **Dr. Christian Ellis**, **Dr. Adam Thorpe**, **Dr. Neel Bhatt**, and **Dr. Ufuk Topcu** 
+for their mentorship and guidance throughout the summer.
+Thank you to **Greta Brown**, who worked with me this summer.
 Thank you to the Autonomous Systems Group at the University of Texas at Austin.
 Supported by the National Science Foundation (NSF) and the Army Educational Outreach Program (AEOP).
